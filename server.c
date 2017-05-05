@@ -15,12 +15,16 @@
 #include <sys/types.h>          
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define MAXCONN 50
 #define MAXSTRLEN 101
 
 int s_tcp_fd;
 int s_udp_fd;
+
+int index_s = 0;
+int index_t = 0;
 
 static void handler(int signum)
 {
@@ -93,6 +97,63 @@ void server_to_gw(char *gw_ip, int gw_port, int tcp_port){
 
 }
 
+int accept_connection(){
+
+    if (listen(s_tcp_fd, MAXCONN) < 0){
+            perror("Listen problem");
+            exit(1);
+    }
+
+    int new_tcp_fd;
+    new_tcp_fd = accept(s_tcp_fd, NULL, NULL);
+    if ( new_tcp_fd < 0){
+        perror("Accept problem");
+        exit(1);
+    }
+
+    return new_tcp_fd;
+}
+
+void * serve_client (void * socket){
+
+        char str_buf[MAXSTRLEN];
+        int * new_tcp_fd = (int *)socket;
+
+        printf("Client is being served on socket %d\n", *new_tcp_fd);
+        
+        if (recv(*new_tcp_fd, str_buf, MAXSTRLEN, 0) < 0){
+            perror("Receive problem");
+        }
+        
+        printf("%s\n", str_buf);
+        
+        /* String to upper case */
+
+        int i = 0;
+        char upper_string[MAXSTRLEN];
+        while(str_buf[i])
+        {
+            upper_string[i] = toupper(str_buf[i]);
+            i++;
+        }
+        
+        upper_string[i] = '\0';
+        
+        
+        if (send(*new_tcp_fd, upper_string, strlen(upper_string)+1, 0) < 0){
+            perror("Send problem");
+        }
+
+        if (close(*new_tcp_fd) < 0)
+            perror("TCP socket not closed");
+
+        *new_tcp_fd = -1;
+
+        pthread_exit(NULL);
+}
+
+
+
 int main(int argc, char *argv[]){
     
     if (argc < 3){
@@ -124,44 +185,32 @@ int main(int argc, char *argv[]){
     /* Send sock_stream address to gw */
     
     server_to_gw(gw_ip, gw_port, tcp_port);
+
+    pthread_t threads[MAXCONN];
+    int sockets[MAXCONN];
+    memset(&sockets, -1, MAXCONN*sizeof(int));
     
     while(1){
-        
-        if (listen(s_tcp_fd, MAXCONN) < 0){
-            perror("Listen problem");
-            exit(1);
+
+        while (sockets[index_s] != -1){
+            index_s++;
         }
-        
-        int new_tcp_fd;
-        new_tcp_fd = accept(s_tcp_fd, NULL, NULL);
-        if ( new_tcp_fd < 0){
-            perror("Accept problem");
-            exit(1);
+
+        sockets[index_s] = accept_connection();
+
+        printf("%d, %d\n", index_s, sockets[index_s]);
+
+        int error;
+        error = pthread_create(&threads[index_t++], NULL, serve_client, &sockets[index_s]);
+        if(error != 0){
+            perror("Thread creation error");
+            exit(-1);
         }
-        
-        char str_buf[MAXSTRLEN];
-        
-        if (recv(new_tcp_fd, str_buf, MAXSTRLEN, 0) < 0){
-            perror("Receive problem");
-        }
-        
-        printf("%s\n", str_buf);
-        
-        /* String to upper case (remember to put null at client)*/
-        int i = 0;
-        char upper_string[MAXSTRLEN];
-        while(str_buf[i])
-        {
-            upper_string[i] = toupper(str_buf[i]);
-            i++;
-        }
-        
-        upper_string[i] = '\0';
-        
-        
-        if (send(new_tcp_fd, upper_string, strlen(upper_string)+1, 0) < 0){
-            perror("Send problem");
-        }
+
+        index_s++;
+
+        if (index_t >= MAXCONN)
+            index_t = 0;
     
     }
         
