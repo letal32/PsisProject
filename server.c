@@ -22,12 +22,38 @@
 
 int s_tcp_fd;
 int s_udp_fd;
+int tcp_port;
+char *gw_ip;
+int gw_port;
 
 int index_s = 0;
 int index_t = 0;
 
 static void handler(int signum)
-{
+{   
+    message m;
+    m.type = 1;
+    m.port = tcp_port;
+    
+    char *buffer;
+    buffer = malloc(sizeof(m));
+    memset(buffer, 0, sizeof(m));
+    memcpy(buffer, &m, sizeof(m));
+
+    
+    struct sockaddr_in gw_addr;
+    gw_addr.sin_family = AF_INET;
+    gw_addr.sin_port = htons(gw_port);
+        
+    if (!inet_aton(gw_ip, &gw_addr.sin_addr)){
+        perror("Gateway IP not valid");
+        exit(1);
+    }
+
+    if (sendto(s_udp_fd, buffer, sizeof(m), 0, (struct sockaddr*)&gw_addr, sizeof(gw_addr)) < 0){
+        perror("Failed UDP connection with gateway");
+        exit(1);
+    }
     
     if (close(s_udp_fd) < 0)
         perror("UDP socket not closed");
@@ -38,7 +64,7 @@ static void handler(int signum)
     exit(0);
 }
 
-void server_tcp_setup(int tcp_port){
+void server_tcp_setup(){
     
     s_tcp_fd = socket(AF_INET, SOCK_STREAM, 0);
     
@@ -69,11 +95,13 @@ void server_udp_setup(){
     
 }
 
-void server_to_gw(char *gw_ip, int gw_port, int tcp_port){
+void server_to_gw(){
     
     message m;
-    m.type = 1;
+    m.type = 0;
     m.port = tcp_port;
+
+    printf("%d\n", m.port);
     
     char *buffer;
     buffer = malloc(sizeof(m));
@@ -161,10 +189,10 @@ int main(int argc, char *argv[]){
         exit(1);
     }
     
-    int tcp_port = 3000 + getpid();
+    tcp_port = 3000 + getpid();
     
-    char *gw_ip = argv[1];
-    int gw_port = atoi(argv[2]);
+    gw_ip = argv[1];
+    gw_port = atoi(argv[2]);
     
     /* SIGINT handling */
     struct sigaction sa;
@@ -180,11 +208,11 @@ int main(int argc, char *argv[]){
     
     /* Creates socket of type stream for connections with clients */
     
-    server_tcp_setup(tcp_port);
+    server_tcp_setup();
     
     /* Send sock_stream address to gw */
     
-    server_to_gw(gw_ip, gw_port, tcp_port);
+    server_to_gw();
 
     pthread_t threads[MAXCONN];
     int sockets[MAXCONN];

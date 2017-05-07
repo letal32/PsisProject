@@ -30,11 +30,13 @@ node* insert(node *head, char *address, int port);
 node get_server(node *head, int index);
 char *serialize_msg(message m);
 int mod(int a, int b);
+node* remove_node(node *head, char *address, int port);
+void printlist();
 
 
 /*
-    All peers connections are received on port 4000
-    All client connections are received on port 5000
+    All peers connections are received on port 5000
+    All client connections are received on port 4000
 */
 
 
@@ -122,10 +124,23 @@ void * frompeers (void * arg){
          message mess;
          memcpy(&mess, buffer, sizeof(mess));
          
-         /* Save the address in linked list*/
-         
-         head = insert(head, inet_ntoa(recv_addr.sin_addr), mess.port);
-         num_servers++;
+         if (mess.type == 0){
+
+            /* Save the address in linked list*/
+
+            head = insert(head, inet_ntoa(recv_addr.sin_addr), mess.port);
+            num_servers++;
+
+         } else {
+
+            /* Remove the address from the linked list*/
+
+            head = remove_node(head, inet_ntoa(recv_addr.sin_addr), mess.port);
+            num_servers--;
+
+         } 
+
+         printlist();
        
     }
 
@@ -201,6 +216,37 @@ node* insert(node *head, char *address, int port){
     
 }
 
+node* remove_node(node *head, char *address, int port){
+
+    if (head == NULL)
+        return head;
+
+    if (strcmp(address, head->address) == 0 && port == head->port){
+
+        node *new_head = head->next;
+        free(head);
+
+        return new_head;
+    }
+
+    node* cur_node = head;
+    
+    while (cur_node->next != NULL){
+
+        if (strcmp(address, cur_node-> next-> address) == 0 && port == cur_node-> next-> port){
+
+            node *temp = cur_node->next->next;
+            free(cur_node->next);
+            cur_node->next = temp;
+            return head;
+        }
+
+        cur_node = cur_node->next;
+    }    
+
+    return head;
+}
+
 node get_server(node *head, int index){
     
     node *cur_node = head;
@@ -236,6 +282,28 @@ int mod(int a, int b)
 {
     int r = a % b;
     return r < 0 ? r + b : r;
+}
+
+void printlist(){
+
+    if (head == NULL)
+        return;
+
+    int k = 0;
+    node * cur = head;
+    while (cur->next != NULL){
+        printf("Entry %d: (%s), (%d)\n", k, cur->address, cur->port);
+        fflush(stdout);
+        k++;
+        cur = cur->next;
+    }
+
+    if (cur->next == NULL){
+        printf("Entry %d: (%s), (%d)\n", k, cur->address, cur->port);
+        fflush(stdout);
+        k++;
+    }
+
 }
 
 
