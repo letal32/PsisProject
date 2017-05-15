@@ -82,7 +82,9 @@ void * fromclient (void * arg){
               
           } else {
             
+                    /* Synchronization here */
              node server = get_server(head, cur_server_index);
+
              cur_server_index = mod(cur_server_index + 1, num_servers);
              assigned_server.type = 1;
              strcpy(assigned_server.address, server.address);
