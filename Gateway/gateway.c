@@ -21,6 +21,7 @@ int s_udp_cl;
 int s_udp_pr;
 node *head = NULL;
 int num_servers = 0;
+pthread_rwlock_t rwlock;
 
 void * fromclient (void * arg);
 void * frompeers (void * arg);
@@ -82,8 +83,9 @@ void * fromclient (void * arg){
               
           } else {
             
-                    /* Synchronization here */
+             pthread_rwlock_rdlock(&rwlock);
              node server = get_server(head, cur_server_index);
+             pthread_rwlock_unlock(&rwlock);
 
              cur_server_index = mod(cur_server_index + 1, num_servers);
              assigned_server.type = 1;
@@ -129,17 +131,18 @@ void * frompeers (void * arg){
          if (mess.type == 0){
 
             /* Save the address in linked list*/
-
+            pthread_rwlock_wrlock(&rwlock);
             head = insert(head, inet_ntoa(recv_addr.sin_addr), mess.port);
             num_servers++;
+            pthread_rwlock_unlock(&rwlock);
 
          } else {
 
             /* Remove the address from the linked list*/
-
+            pthread_rwlock_wrlock(&rwlock);
             head = remove_node(head, inet_ntoa(recv_addr.sin_addr), mess.port);
             num_servers--;
-
+            pthread_rwlock_unlock(&rwlock);
          } 
 
          printlist();
@@ -328,6 +331,7 @@ int main(){
     
     pthread_t thr_cl;
 	pthread_t thr_pr;
+    pthread_rwlock_init(&rwlock,NULL);
 
 	int error;
 	error = pthread_create(&thr_cl, NULL, fromclient, NULL);

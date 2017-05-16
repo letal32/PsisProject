@@ -1,5 +1,5 @@
 //#define SOCKET_NAME "cur_socket"
-//#define MESSAGE_LEN 100
+#define MAX_NAME_LEN 100
 
 typedef struct message_gw{
     int type;
@@ -7,10 +7,21 @@ typedef struct message_gw{
     int port;
 } message;
 
-typedef struct server{
-    char address[20];
-    int port;
-    struct server *next;
+typedef struct photo{
+    char name[100];
+    char keywords[100];
+    uint32_t identifier;
+    struct photo *next;
 } node;
 
+typedef struct cmd_add{
+	int code;
+	int type;
+	int size;
+	char name[MAX_NAME_LEN];
 
+} cmd_add;
+
+
+void insert(node* new_node);
+void printlist();

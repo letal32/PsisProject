@@ -1,4 +1,3 @@
-#include "server.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -10,12 +9,14 @@
 #include <string.h>
 #include <signal.h>
 #include <ctype.h>
+#include <stdint.h>
 
-#include <sys/un.h>
-#include <sys/types.h>          
+#include <sys/un.h>          
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <uuid/uuid.h>
+#include "server.h"
 
 #define MAXCONN 50
 #define MAXSTRLEN 101
@@ -25,6 +26,7 @@ int s_udp_fd;
 int tcp_port;
 char *gw_ip;
 int gw_port;
+node *head = NULL;
 
 int index_s = 0;
 int index_t = 0;
@@ -144,32 +146,44 @@ int accept_connection(){
 
 void * serve_client (void * socket){
 
-        char str_buf[MAXSTRLEN];
         int * new_tcp_fd = (int *)socket;
 
         printf("Client is being served on socket %d\n", *new_tcp_fd);
         
-        if (recv(*new_tcp_fd, str_buf, MAXSTRLEN, 0) < 0){
+
+        char buffer[sizeof(cmd_add)];
+
+        if (recv(*new_tcp_fd, buffer, sizeof(cmd_add), 0) < 0){
             perror("Receive problem");
         }
         
-        printf("%s\n", str_buf);
-        
-        /* String to upper case */
+        cmd_add cmd;
+        memcpy(&cmd, buffer, sizeof(cmd));
 
-        int i = 0;
-        char upper_string[MAXSTRLEN];
-        while(str_buf[i])
-        {
-            upper_string[i] = toupper(str_buf[i]);
-            i++;
-        }
-        
-        upper_string[i] = '\0';
-        
-        
-        if (send(*new_tcp_fd, upper_string, strlen(upper_string)+1, 0) < 0){
-            perror("Send problem");
+        /* Add photo command */
+
+        if (cmd.code == 10){
+
+            int photo_size = cmd.size;
+            char * photo_name = cmd.name;
+
+            char p_array[photo_size];
+            recv(*new_tcp_fd, p_array, photo_size,0);
+
+            FILE *image;
+            image = fopen(cmd.name, "w");
+            fwrite(p_array, 1, sizeof(p_array), image);
+            fclose(image);
+
+            node *new_image = malloc(sizeof(node));
+            strncpy(new_image->name, cmd.name,100);
+            strncpy(new_image->keywords, "\0", 100);
+            new_image->identifier = 1233;
+
+            insert(new_image);
+            printlist();
+            
+
         }
 
         if (close(*new_tcp_fd) < 0)
@@ -178,6 +192,68 @@ void * serve_client (void * socket){
         *new_tcp_fd = -1;
 
         pthread_exit(NULL);
+}
+
+void insert(node* new_node){
+    
+    //printf("(Name : %s , keywords: %s, identifier: %d, )\n", new_node->name, new_node->keywords, new_node->identifier );
+    if (head == NULL){
+        head = new_node;
+        head->next = NULL;
+   
+    } else {
+        new_node->next = head;
+        head = new_node;
+    }
+    
+}
+/*
+node* remove_node(node *head, char *address, int port){
+
+    if (head == NULL)
+        return head;
+
+    if (strcmp(address, head->address) == 0 && port == head->port){
+
+        node *new_head = head->next;
+        free(head);
+
+        return new_head;
+    }
+
+    node* cur_node = head;
+    
+    while (cur_node->next != NULL){
+
+        if (strcmp(address, cur_node-> next-> address) == 0 && port == cur_node-> next-> port){
+
+            node *temp = cur_node->next->next;
+            free(cur_node->next);
+            cur_node->next = temp;
+            return head;
+        }
+
+        cur_node = cur_node->next;
+    }    
+
+    return head;
+}
+*/
+
+void printlist(){
+
+    node * cur_node = head;
+
+    if (cur_node ==  NULL){
+        return;
+    }
+
+    while (cur_node->next != NULL){
+        printf("(Name : %s , keywords: %s, identifier: %d)\n", cur_node->name, cur_node->keywords, cur_node->identifier );
+        cur_node = cur_node->next;
+    }
+
+    printf("(Name : %s , keywords: %s, identifier: %d)\n", cur_node->name, cur_node->keywords, cur_node->identifier );
 }
 
 

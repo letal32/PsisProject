@@ -24,6 +24,18 @@ char *serialize_msg(message m){
 
 }
 
+char *serialize_cmd(cmd_add m){
+
+    char *buffer;
+    buffer = malloc(sizeof(m));
+    memset(buffer, 0, sizeof(m));
+    memcpy(buffer, &m, sizeof(m));
+    
+    return buffer;
+
+}
+
+
 // What should I return in case of a general error?
 
 int gallery_connect(char * host, in_port_t port){
@@ -96,4 +108,45 @@ int gallery_connect(char * host, in_port_t port){
 
     return s_tcp_fd;
 }
+
+uint32_t gallery_add_photo(int peer_socket, char *file_name){
+
+    FILE *picture;
+    picture = fopen(file_name, "r");
+
+    if (picture == NULL){
+        perror("File not found");
+        return 0;
+    }
+
+    int size;
+    fseek(picture, 0, SEEK_END);
+    size = ftell(picture);
+    fseek(picture, 0, SEEK_SET);
+
+    cmd_add request;
+    request.code = 10;
+    request.type = 0;
+    request.size = size;
+    strcpy(request.name, file_name);
+
+    char * buffer = serialize_cmd(request);
+
+    send(peer_socket, buffer, sizeof(cmd_add), 0);
+
+    /* Send image */
+    char send_buffer[size];
+    while(!feof(picture)) {
+        fread(send_buffer, 1, sizeof(send_buffer), picture);
+        send(peer_socket, send_buffer, sizeof(send_buffer),0);
+        bzero(send_buffer, sizeof(send_buffer));
+    }
+
+
+    return 0;
+
+
+}
+
+
 
