@@ -142,10 +142,25 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
         bzero(send_buffer, sizeof(send_buffer));
     }
 
+    /* Receive identifier */
+    char * recv_id = malloc(sizeof(cmd_add));
+    cmd_add response;
+
+    if (recv(peer_socket, recv_id, sizeof(cmd_add), 0) < 0){
+        perror("ID receive errors");
+        return 0;
+    }
+
+    memcpy(&response, recv_id, sizeof(cmd_add));
+    printf("type: %d, id: %d\n", response.type, response.id);
+    if (response.type == 1){
+        return response.id;
+    }
+
+    free(recv_id);
+
 
     return 0;
-
-
 }
 
 

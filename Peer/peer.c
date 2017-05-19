@@ -15,7 +15,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#include <uuid/uuid.h>
+#include <time.h>
 #include "server.h"
 
 #define MAXCONN 50
@@ -30,6 +30,17 @@ node *head = NULL;
 
 int index_s = 0;
 int index_t = 0;
+
+char *serialize_cmd(cmd_add m){
+
+    char *buffer;
+    buffer = malloc(sizeof(m));
+    memset(buffer, 0, sizeof(m));
+    memcpy(buffer, &m, sizeof(m));
+    
+    return buffer;
+
+}
 
 static void handler(int signum)
 {   
@@ -178,11 +189,19 @@ void * serve_client (void * socket){
             node *new_image = malloc(sizeof(node));
             strncpy(new_image->name, cmd.name,100);
             strncpy(new_image->keywords, "\0", 100);
-            new_image->identifier = 1233;
+            new_image->identifier = clock() * getpid();
 
             insert(new_image);
             printlist();
-            
+
+            cmd.type = 1;
+            cmd.id = new_image->identifier;
+
+            printf("%d\n", cmd.id );
+
+            char * response = serialize_cmd(cmd);
+
+            send(*new_tcp_fd, response, sizeof(cmd_add), 0);
 
         }
 
@@ -302,7 +321,7 @@ int main(int argc, char *argv[]){
 
         sockets[index_s] = accept_connection();
 
-        printf("%d, %d\n", index_s, sockets[index_s]);
+        //printf("%d, %d\n", index_s, sockets[index_s]);
 
         int error;
         error = pthread_create(&threads[index_t++], NULL, serve_client, &sockets[index_s]);

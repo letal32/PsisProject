@@ -34,7 +34,9 @@ int main(int argc, char *argv[]){
         printf("%d\n", c_stat );
     }
 
-    gallery_add_photo(s_tcp_fd, "./test.png");
+    uint32_t ret = gallery_add_photo(s_tcp_fd, "./test.png");
+
+    printf("%d\n", ret);
 
     
     exit(0);
