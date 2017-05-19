@@ -179,11 +179,20 @@ void * serve_client (void * socket){
             char * photo_name = cmd.name;
 
             char p_array[photo_size];
-            recv(*new_tcp_fd, p_array, photo_size,0);
-
+            int nbytes = 0;
+            int cur_index = 0;
             FILE *image;
             image = fopen(cmd.name, "w");
-            fwrite(p_array, 1, sizeof(p_array), image);
+
+            while(cur_index < photo_size){
+                nbytes = recv(*new_tcp_fd, p_array, photo_size,0);
+                cur_index = cur_index + nbytes;
+                fwrite(p_array, 1, nbytes, image);
+                printf("%d\n", nbytes);
+            }
+
+
+           
             fclose(image);
 
             node *new_image = malloc(sizeof(node));
@@ -197,7 +206,7 @@ void * serve_client (void * socket){
             cmd.type = 1;
             cmd.id = new_image->identifier;
 
-            printf("%d\n", cmd.id );
+            //printf("%d\n", cmd.id );
 
             char * response = serialize_cmd(cmd);
 

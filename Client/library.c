@@ -36,8 +36,6 @@ char *serialize_cmd(cmd_add m){
 }
 
 
-// What should I return in case of a general error?
-
 int gallery_connect(char * host, in_port_t port){
 
 	int s_udp_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -89,7 +87,7 @@ int gallery_connect(char * host, in_port_t port){
     
     if (s_tcp_fd == -1) {
         perror("STREAM socket error");
-        exit(1);
+        return -1;
     }    
 
     struct sockaddr_in server_addr;
@@ -98,12 +96,12 @@ int gallery_connect(char * host, in_port_t port){
         
     if (!inet_aton(gw_mess.address, &server_addr.sin_addr)){
         perror("Gateway IP not valid");
-        exit(1);
+        return -1;
     }
     
     if (connect(s_tcp_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
         perror("TCP connection failed");
-        exit(1);
+        return -1;
     }
 
     return s_tcp_fd;
@@ -123,7 +121,7 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     fseek(picture, 0, SEEK_END);
     size = ftell(picture);
     fseek(picture, 0, SEEK_SET);
-
+    printf("Size: %d\n", size);
     cmd_add request;
     request.code = 10;
     request.type = 0;
