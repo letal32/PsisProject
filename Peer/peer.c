@@ -161,59 +161,94 @@ void * serve_client (void * socket){
 
         printf("Client is being served on socket %d\n", *new_tcp_fd);
         
+        while (1){
 
-        char buffer[sizeof(cmd_add)];
+            //printf("Waiting for command...\n");
+            char *buffer = malloc(sizeof(cmd_add));
 
-        if (recv(*new_tcp_fd, buffer, sizeof(cmd_add), 0) < 0){
-            perror("Receive problem");
-        }
-        
-        cmd_add cmd;
-        memcpy(&cmd, buffer, sizeof(cmd));
-
-        /* Add photo command */
-
-        if (cmd.code == 10){
-
-            int photo_size = cmd.size;
-            char * photo_name = cmd.name;
-
-            char p_array[photo_size];
-            int nbytes = 0;
-            int cur_index = 0;
-            FILE *image;
-            image = fopen(cmd.name, "w");
-
-            while(cur_index < photo_size){
-                nbytes = recv(*new_tcp_fd, p_array, photo_size,0);
-                cur_index = cur_index + nbytes;
-                fwrite(p_array, 1, nbytes, image);
-                printf("%d\n", nbytes);
+            if (recv(*new_tcp_fd, buffer, sizeof(cmd_add), 0) <= 0){
+                break;
             }
+            
+            cmd_add cmd;
+            memcpy(&cmd, buffer, sizeof(cmd));
 
+            //printf("%d\n", cmd.code );
 
-           
-            fclose(image);
+            /* Add photo command */
 
-            node *new_image = malloc(sizeof(node));
-            strncpy(new_image->name, cmd.name,100);
-            strncpy(new_image->keywords, "\0", 100);
-            new_image->identifier = clock() * getpid();
+            if (cmd.code == 10){
 
-            insert(new_image);
-            printlist();
+                int photo_size = cmd.size;
+                char * photo_name = cmd.name;
 
-            cmd.type = 1;
-            cmd.id = new_image->identifier;
+                char p_array[photo_size];
+                int nbytes = 0;
+                int cur_index = 0;
+                FILE *image;
+                image = fopen(cmd.name, "w");
 
-            //printf("%d\n", cmd.id );
+                while(cur_index < photo_size){
+                    nbytes = recv(*new_tcp_fd, p_array, photo_size,0);
+                    cur_index = cur_index + nbytes;
+                    fwrite(p_array, 1, nbytes, image);
+                    printf("%d\n", nbytes);
+                }
+            
+                fclose(image);
 
-            char * response = serialize_cmd(cmd);
+                node *new_image = malloc(sizeof(node));
+                strncpy(new_image->name, cmd.name,100);
+                strncpy(new_image->keywords, "\0", 100);
+                new_image->identifier = clock() * getpid();
 
-            send(*new_tcp_fd, response, sizeof(cmd_add), 0);
+                insert(new_image);
+                printlist();
 
+                cmd_add resp;
+
+                resp.type = 1;
+                resp.id = new_image->identifier;
+
+                //printf("%d\n", cmd.id );
+
+                char * response = serialize_cmd(resp);
+
+                send(*new_tcp_fd, response, sizeof(cmd_add), 0);
+
+            } else if (cmd.code == 11){
+
+                //printf("IM HERE\n");
+
+                node * photo_info = search(cmd.id);
+
+                if (photo_info == NULL){
+                    cmd_add resp;
+                    resp.type = 2;
+                    char * response = serialize_cmd(resp);
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) <= 0){
+                        perror("Keyword send response error");
+                        break;
+                    }
+
+                } else {
+
+                    strncpy(photo_info->keywords + strlen(photo_info->keywords), cmd.keyword, MAX_KEYWORD_LEN);
+                    printlist();
+
+                    cmd_add resp;
+                    resp.type = 1;
+                    char * response = serialize_cmd(resp);
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) <= 0){
+                        perror("Keyword send response error");
+                        break;
+                    }
+                }
+
+            }
         }
 
+        //printf("IM HERE2\n");
         if (close(*new_tcp_fd) < 0)
             perror("TCP socket not closed");
 
@@ -235,6 +270,35 @@ void insert(node* new_node){
     }
     
 }
+
+node* search(uint32_t id){
+
+    if (head == NULL)
+        return NULL;
+
+    if (head->identifier == id){
+        return head;
+    }
+
+    node* cur_node = head;
+
+    while (cur_node->next != NULL){
+
+        if (cur_node->identifier == id){
+
+            return cur_node;
+        }
+
+        cur_node = cur_node->next;
+    }
+
+    if (cur_node->identifier == id){
+        return cur_node;
+    }
+
+    return NULL;
+}
+
 /*
 node* remove_node(node *head, char *address, int port){
 
@@ -277,11 +341,11 @@ void printlist(){
     }
 
     while (cur_node->next != NULL){
-        printf("(Name : %s , keywords: %s, identifier: %d)\n", cur_node->name, cur_node->keywords, cur_node->identifier );
+        printf("(Name : %s , keywords: %s, identifier: %u)\n", cur_node->name, cur_node->keywords, cur_node->identifier );
         cur_node = cur_node->next;
     }
 
-    printf("(Name : %s , keywords: %s, identifier: %d)\n", cur_node->name, cur_node->keywords, cur_node->identifier );
+    printf("(Name : %s , keywords: %s, identifier: %u)\n", cur_node->name, cur_node->keywords, cur_node->identifier );
 }
 
 
@@ -345,7 +409,7 @@ int main(int argc, char *argv[]){
             index_t = 0;
     
     }
-        
+
     exit(0);
     
 }

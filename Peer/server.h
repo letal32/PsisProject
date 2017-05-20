@@ -10,7 +10,7 @@ typedef struct message_gw{
 
 typedef struct photo{
     char name[100];
-    char keywords[100];
+    char keywords[500];
     uint32_t identifier;
     struct photo *next;
 } node;
@@ -28,3 +28,5 @@ typedef struct cmd_add{
 
 void insert(node* new_node);
 void printlist();
+
+node* search(uint32_t id);

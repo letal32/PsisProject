@@ -121,7 +121,7 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     fseek(picture, 0, SEEK_END);
     size = ftell(picture);
     fseek(picture, 0, SEEK_SET);
-    printf("Size: %d\n", size);
+    //printf("Size: %d\n", size);
     cmd_add request;
     request.code = 10;
     request.type = 0;
@@ -150,7 +150,7 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     }
 
     memcpy(&response, recv_id, sizeof(cmd_add));
-    printf("type: %d, id: %d\n", response.type, response.id);
+    //printf("type: %d, id: %d\n", response.type, response.id);
     if (response.type == 1){
         return response.id;
     }
@@ -161,5 +161,40 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     return 0;
 }
 
+int gallery_add_keyword(int peer_socket, uint32_t id_photo, char *keyword){
+
+    cmd_add request;
+    request.code = 11;
+    request.type = 0;
+    strcpy(request.keyword, keyword);
+    request.id = id_photo;
+
+    char * buffer = serialize_cmd(request);
+
+    if (send(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Keyword request failed");
+        return 0;
+    }
+
+    if (recv(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Keyword reply failed");
+        return 0;
+    }
+
+    cmd_add response;
+    memcpy(&response, buffer, sizeof(cmd_add));
+
+    if (response.type == 2){
+        return 0;
+    }
+
+    if (response.type == 1){
+        return 1;
+    }
+
+    return 0;
+
+
+}
 
 
