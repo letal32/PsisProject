@@ -197,4 +197,37 @@ int gallery_add_keyword(int peer_socket, uint32_t id_photo, char *keyword){
 
 }
 
+int gallery_delete_photo(int peer_socket, uint32_t id_photo){
+
+    cmd_add request;
+    request.code = 12;
+    request.type = 0;
+    request.id = id_photo;
+
+    char * buffer = serialize_cmd(request);
+
+    if (send(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Delete photo request failed");
+        return -1;
+    }
+
+    if (recv(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Delete photo reply failed");
+        return -1;
+    }
+
+    cmd_add response;
+    memcpy(&response, buffer, sizeof(cmd_add));
+
+    if (response.type == 2){
+        return 0;
+    }
+
+    if (response.type == 1){
+        return 1;
+    }
+
+    return -1;
+}
+
 

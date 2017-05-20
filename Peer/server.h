@@ -30,3 +30,4 @@ void insert(node* new_node);
 void printlist();
 
 node* search(uint32_t id);
+int remove_node(uint32_t id);

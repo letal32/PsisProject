@@ -76,6 +76,39 @@ void add_keyword(){
 
 }
 
+void remove_picture(){
+    printf("\nInsert the ID of the picture you want to remove: \n");
+
+    char *line = NULL;
+    size_t size;
+    if (getline(&line, &size, stdin) == -1) {
+            printf("\nInvalid ID!\n");
+            return;
+    }
+
+    line[strlen(line)-1] = '\0';
+    char ** endptr;
+
+    uint32_t id = strtoul(line, endptr, 0);
+
+    if (strlen(*endptr) != 0){
+        printf("Invalid ID!\n");
+        return;
+    }
+
+    int ret = gallery_delete_photo(s_tcp_fd, id);
+
+    if (ret == 1){
+        printf("The picture %d was successfully removed from the gallery \n\n", id);
+    } else if (ret == 0) {
+        printf("No picture with ID %d was found in the gallery \n\n", id);
+    } else{
+        printf("Something went wrong. Try again!\n\n");
+    }
+
+
+}
+
 
 int main(int argc, char *argv[]){
 
@@ -124,6 +157,8 @@ int main(int argc, char *argv[]){
             add_photo();
         } else if (selection == 2){
             add_keyword();
+        }else if (selection == 3){
+            remove_picture();
         } else{
             printf("\nInvalid command!\n");
         }

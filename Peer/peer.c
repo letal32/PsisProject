@@ -226,7 +226,7 @@ void * serve_client (void * socket){
                     cmd_add resp;
                     resp.type = 2;
                     char * response = serialize_cmd(resp);
-                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) <= 0){
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
                         perror("Keyword send response error");
                         break;
                     }
@@ -239,13 +239,37 @@ void * serve_client (void * socket){
                     cmd_add resp;
                     resp.type = 1;
                     char * response = serialize_cmd(resp);
-                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) <= 0){
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
                         perror("Keyword send response error");
                         break;
                     }
                 }
 
+            } else if (cmd.code == 12) {
+
+                int status = remove_node(cmd.id);
+                printlist();
+                
+                if (status == 0){
+                    cmd_add resp;
+                    resp.type = 2;
+                    char * response = serialize_cmd(resp);
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
+                        break;
+                    }
+                } else if (status == 1){
+                    cmd_add resp;
+                    resp.type = 1;
+                    char * response = serialize_cmd(resp);
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
+                        perror("Photo delete response error");
+                        break;
+                    }
+
+                }
+
             }
+
         }
 
         //printf("IM HERE2\n");
@@ -259,7 +283,6 @@ void * serve_client (void * socket){
 
 void insert(node* new_node){
     
-    //printf("(Name : %s , keywords: %s, identifier: %d, )\n", new_node->name, new_node->keywords, new_node->identifier );
     if (head == NULL){
         head = new_node;
         head->next = NULL;
@@ -299,38 +322,38 @@ node* search(uint32_t id){
     return NULL;
 }
 
-/*
-node* remove_node(node *head, char *address, int port){
+
+int remove_node(uint32_t id){
 
     if (head == NULL)
-        return head;
+        return 0;
 
-    if (strcmp(address, head->address) == 0 && port == head->port){
+    if (head->identifier == id){
 
         node *new_head = head->next;
         free(head);
-
-        return new_head;
+        head = new_head;
+        return 1;
     }
 
     node* cur_node = head;
     
     while (cur_node->next != NULL){
 
-        if (strcmp(address, cur_node-> next-> address) == 0 && port == cur_node-> next-> port){
+        if (cur_node->next->identifier == id){
 
             node *temp = cur_node->next->next;
             free(cur_node->next);
             cur_node->next = temp;
-            return head;
+            return 1;
         }
 
         cur_node = cur_node->next;
     }    
 
-    return head;
+    return 0;
 }
-*/
+
 
 void printlist(){
 
