@@ -214,7 +214,10 @@ void * serve_client (void * socket){
 
                 char * response = serialize_cmd(resp);
 
-                send(*new_tcp_fd, response, sizeof(cmd_add), 0);
+                if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
+                    perror("Add photo response problem");
+                    break;
+                }
 
             } else if (cmd.code == 11){
 
@@ -249,7 +252,7 @@ void * serve_client (void * socket){
 
                 int status = remove_node(cmd.id);
                 printlist();
-                
+
                 if (status == 0){
                     cmd_add resp;
                     resp.type = 2;
@@ -267,6 +270,65 @@ void * serve_client (void * socket){
                     }
 
                 }
+
+            } else if (cmd.code == 15){
+
+                node * photo_info = search(cmd.id);
+
+                if (photo_info == NULL){
+                    cmd_add resp;
+                    resp.type = 2;
+                    char * response = serialize_cmd(resp);
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
+                        perror("Download picture response error");
+                        break;
+                    }                   
+                } else {
+
+                    FILE *picture;
+                    picture = fopen(photo_info->name, "r");
+                    if (picture == NULL){
+                        perror("File not found");
+                        exit(1);
+                    }
+
+                    int size;
+                    fseek(picture, 0, SEEK_END);
+                    size = ftell(picture);
+                    fseek(picture, 0, SEEK_SET);
+
+
+                    cmd_add resp;
+                    resp.code = 15;
+                    resp.type = 1;
+                    resp.size = size;
+
+                    char * buffer = serialize_cmd(resp);
+
+                    if (send(*new_tcp_fd, buffer, sizeof(cmd_add), 0) < 0){
+                        perror("Download picture response failed");
+                        break;
+                    }
+
+                    /* Send image */
+                    char send_buffer[size];
+                    while(!feof(picture)) {
+                        int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
+                        if (read > 0){
+                            int sent = send(*new_tcp_fd, send_buffer, sizeof(send_buffer),0);
+                            printf("SENT: %d\n", sent);
+                        }
+
+                        bzero(send_buffer, sizeof(send_buffer));
+                    }
+
+                    fclose(picture);
+
+
+                }
+
+
+
 
             }
 
