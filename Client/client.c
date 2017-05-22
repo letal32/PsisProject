@@ -25,12 +25,15 @@ void add_photo(){
     //printf("%s\n", line);
     uint32_t ret = gallery_add_photo(s_tcp_fd, line);
 
+
+
     if (ret == 0){
         printf("\nSomething went wrong. Please retry!\n");
     } else {
         printf("\nThe picture have been successfully added. The ID of %s is %u\n\n", line, ret);
     }
 
+    free(line);
 
 }
 
@@ -73,6 +76,8 @@ void add_keyword(){
         printf("Something went wrong. Try again!\n");
     }
 
+    free(line);
+
 
 }
 
@@ -105,6 +110,8 @@ void remove_picture(){
     } else{
         printf("Something went wrong. Try again!\n\n");
     }
+
+    free(line);
 
 
 }
@@ -151,6 +158,8 @@ void get_picture(){
         printf("Something went wrong. Try again!\n\n");
     }
 
+    free(line);
+
 }
 
 void search_keyword(){
@@ -182,6 +191,49 @@ void search_keyword(){
         printf("Something went wrong. Try again!\n\n");
     }
 
+    free(line);
+
+
+}
+
+void get_name(){
+
+printf("\nInsert the ID of the picture you want to retrieve the name of: \n");
+
+    char *line = NULL;
+    size_t size;
+    if (getline(&line, &size, stdin) == -1) {
+            printf("\nInvalid ID!\n");
+            return;
+    }
+
+    line[strlen(line)-1] = '\0';
+    char ** endptr = malloc(sizeof(char*));
+
+    uint32_t id = strtoul(line, endptr, 0);
+
+    if (strlen(*endptr) != 0){
+        printf("Invalid ID!\n");
+        return;
+    }
+
+    printf("%s\n", line );
+
+    
+    char** name = malloc(sizeof(char*));
+
+    
+    int ret = gallery_get_photo_name(s_tcp_fd, id, name);
+
+
+    if (ret > 0){
+        printf("The name of the picture with ID %u is %s \n\n", id, *name);
+    } else if (ret == 0){
+        printf("No picture was found with the ID %u \n\n", id);
+    } else{
+        printf("Something went wrong. Try again!\n\n");
+    }
+    
 
 }
 
@@ -239,6 +291,8 @@ int main(int argc, char *argv[]){
             get_picture();
         } else if (selection == 4){
             search_keyword();
+        } else if (selection == 5) {
+            get_name();
         } else {
             printf("\nInvalid command!\n");
         }

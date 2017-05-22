@@ -405,10 +405,34 @@ void * serve_client (void * socket){
                         break;
                     }
 
-
-
-
                 }
+
+            } else if (cmd.code == 14){
+
+                node * photo_info = search_by_id(cmd.id);
+
+                if (photo_info == NULL){
+                    cmd_add resp;
+                    resp.type = 2;
+                    char * response = serialize_cmd(resp);
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
+                        perror("Photo name response error");
+                        break;
+                    }
+
+                } else {
+
+                    cmd_add resp;
+                    resp.type = 1;
+                    strncpy(resp.name, photo_info->name, MAX_NAME_LEN);
+
+                    char * response = serialize_cmd(resp);
+                    if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
+                        perror("Keyword send response error");
+                        break;
+                    }
+                }
+
 
             }
 

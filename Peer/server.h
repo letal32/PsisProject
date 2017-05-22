@@ -9,7 +9,7 @@ typedef struct message_gw{
 } message;
 
 typedef struct photo{
-    char name[100];
+    char name[MAX_NAME_LEN];
     char keywords[500];
     uint32_t identifier;
     struct photo *next;

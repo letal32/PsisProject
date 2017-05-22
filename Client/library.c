@@ -81,6 +81,8 @@ int gallery_connect(char * host, in_port_t port){
     	return 0;
     }
 
+    free(buffer_rcv);
+
     /* Establish a connection with the peer */
 
     int s_tcp_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -131,6 +133,8 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     char * buffer = serialize_cmd(request);
 
     send(peer_socket, buffer, sizeof(cmd_add), 0);
+
+    free(buffer);
 
     /* Send image */
     printf("SIZE OF PICTURE: %d\n", size);
@@ -191,6 +195,8 @@ int gallery_add_keyword(int peer_socket, uint32_t id_photo, char *keyword){
     cmd_add response;
     memcpy(&response, buffer, sizeof(cmd_add));
 
+    free(buffer);
+
     if (response.type == 2){
         return 0;
     }
@@ -225,6 +231,8 @@ int gallery_delete_photo(int peer_socket, uint32_t id_photo){
 
     cmd_add response;
     memcpy(&response, buffer, sizeof(cmd_add));
+
+    free(buffer);
 
     if (response.type == 2){
         return 0;
@@ -262,6 +270,8 @@ int gallery_get_photo(int peer_socket, uint32_t id_photo, char *file_name){
     if (response.type == 2){
         return 0;
     }
+
+    free(buffer);
 
     int photo_size = response.size;
 
@@ -307,6 +317,7 @@ int gallery_search_photo(int peer_socket, char * keyword, uint32_t ** id_photos)
     memcpy(&response, buffer, sizeof(cmd_add));
 
     if (response.type == 2){
+        free(buffer);
         return 0;
     } else if (response.type == 1){
 
@@ -315,24 +326,74 @@ int gallery_search_photo(int peer_socket, char * keyword, uint32_t ** id_photos)
         uint32_t* ids = (uint32_t*) calloc(num_keywords, sizeof(uint32_t));
 
         for (int i = 0; i < num_keywords; i++){
-            char recv_buffer[sizeof(cmd_add)];
-            if (recv(peer_socket, recv_buffer, sizeof(cmd_add), 0) < 0){
+
+            if (recv(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
                 perror("Search keyword reply failed");
                 return -1;
             }
 
-            memcpy(&response, recv_buffer, sizeof(cmd_add));
+            memcpy(&response, buffer, sizeof(cmd_add));
             ids[i] = response.id;
             //printf("NUM KEYWORDS: %d\n", ids[i]);
         }
 
         *id_photos = ids;
 
+        free(buffer);
+
         return num_keywords;
     }
 
+    free(buffer);
+
     return -1;
     
+}
+
+int gallery_get_photo_name(int peer_socket, uint32_t id_photo, char **photo_name){
+
+    cmd_add request;
+    request.code = 14;
+    request.type = 0;
+    request.id = id_photo;
+
+    char * buffer = serialize_cmd(request);
+
+    if (send(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Get name request failed");
+        return -1;
+    }
+
+    if (recv(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Get name reply failed");
+        return -1;
+    }
+
+    cmd_add response;
+    memcpy(&response, buffer, sizeof(cmd_add));    
+
+    if (response.type == 2){
+        free(buffer);
+        return 0;
+    }
+
+    if (response.type == 1){
+        char* name = malloc(MAX_NAME_LEN);
+        strncpy(name, response.name, MAX_NAME_LEN);
+
+        *photo_name = name;
+
+        free(buffer);
+
+        return 1;
+
+    }
+
+    free(buffer);
+
+    return -1;
+
+
 }
 
 
