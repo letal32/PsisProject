@@ -153,6 +153,38 @@ void get_picture(){
 
 }
 
+void search_keyword(){
+
+    printf("\nInsert the keyword you want to search: \n");
+    char* line = NULL;
+    size_t size;
+
+    if (getline(&line, &size, stdin) == -1) {
+            printf("\nInvalid keyword!\n");
+            return;
+    }
+
+    line[strlen(line)-1] = '\0';
+
+    uint32_t** ids;
+
+    int ret = gallery_search_photo(s_tcp_fd, line, ids);
+
+    if (ret > 0){
+        printf("In the gallery there are %d pictures with the keyword \"%s\": \n\n", ret, line);
+        for (int i = 0; i < ret; i++){
+            printf("%d : %u\n\n", i, (*ids)[i] );
+        }
+
+    } else if (ret == 0){
+        printf("No picture was found with this keyword \n\n");
+    } else{
+        printf("Something went wrong. Try again!\n\n");
+    }
+
+
+}
+
 
 int main(int argc, char *argv[]){
 
@@ -205,6 +237,8 @@ int main(int argc, char *argv[]){
             remove_picture();
         } else if (selection == 6){
             get_picture();
+        } else if (selection == 4){
+            search_keyword();
         } else {
             printf("\nInvalid command!\n");
         }

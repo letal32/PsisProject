@@ -223,7 +223,7 @@ void * serve_client (void * socket){
 
                 //printf("IM HERE\n");
 
-                node * photo_info = search(cmd.id);
+                node * photo_info = search_by_id(cmd.id);
 
                 if (photo_info == NULL){
                     cmd_add resp;
@@ -273,7 +273,7 @@ void * serve_client (void * socket){
 
             } else if (cmd.code == 15){
 
-                node * photo_info = search(cmd.id);
+                node * photo_info = search_by_id(cmd.id);
 
                 if (photo_info == NULL){
                     cmd_add resp;
@@ -327,8 +327,88 @@ void * serve_client (void * socket){
 
                 }
 
+            } else if (cmd.code == 13){
+
+                node* cur_node = head;
+                int num_keywords = 0;
+                int size = 100;
+                int index = 0;
+
+                uint32_t* ids = malloc(size*sizeof(uint32_t));
+
+                while ((cur_node = search_by_keyword(cur_node, cmd.keyword)) != NULL){
+
+                    num_keywords++;
+
+                    if (index < size){ 
+                        ids[index++] = cur_node->identifier;
+
+                    } else {
+                        uint32_t* new_ids = malloc(index*2*sizeof(uint32_t));
+                        size = 2*size;
+
+                        for (int i = 0; i < index; i++){
+                            new_ids[i] = ids[i];
+                        }
+
+                        free(ids);
+                        ids = new_ids;
+                        ids[index++] = cur_node->identifier;
+                    }
+
+                    cur_node = cur_node->next;
+                }
 
 
+                if (num_keywords == 0){
+
+                    cmd_add resp;
+                    resp.code = 15;
+                    resp.type = 2;
+
+                    char * buffer = serialize_cmd(resp);
+
+                    if (send(*new_tcp_fd, buffer, sizeof(cmd_add), 0) < 0){
+                        perror("Search keyword response failed");
+                        break;
+                    }
+
+                } else {
+
+                    cmd_add resp;
+                    resp.code = 15;
+                    resp.type = 1;
+                    resp.size = num_keywords;
+
+                    char * buffer = serialize_cmd(resp);
+
+                    if (send(*new_tcp_fd, buffer, sizeof(cmd_add), 0) < 0){
+                        perror("Search keyword response failed");
+                        break;
+                    }
+
+                    int i;
+                    for (i = 0; i < num_keywords; i++){
+                        resp.id = ids[i];
+                        //printf("identifier: %u\n", resp.id);
+                        buffer = serialize_cmd(resp);
+                        if (send(*new_tcp_fd, buffer, sizeof(cmd_add), 0) < 0){
+                            perror("Search keyword response failed");
+                            break;
+                        }
+
+                    }
+
+                    free(ids);
+
+                    if (i < num_keywords){
+                        break;
+                    }
+
+
+
+
+                }
 
             }
 
@@ -356,7 +436,7 @@ void insert(node* new_node){
     
 }
 
-node* search(uint32_t id){
+node* search_by_id(uint32_t id){
 
     if (head == NULL)
         return NULL;
@@ -378,6 +458,34 @@ node* search(uint32_t id){
     }
 
     if (cur_node->identifier == id){
+        return cur_node;
+    }
+
+    return NULL;
+}
+
+node* search_by_keyword(node* start, char* keyword){
+
+    if (start == NULL)
+        return NULL;
+
+    if (strstr(start->keywords, keyword) != NULL){
+        return start;
+    }
+
+    node* cur_node = start;
+
+    while (cur_node->next != NULL){
+
+        if (strstr(start->keywords, keyword) != NULL){
+
+            return cur_node;
+        }
+
+        cur_node = cur_node->next;
+    }
+
+    if (strstr(cur_node->keywords, keyword) != NULL){
         return cur_node;
     }
 

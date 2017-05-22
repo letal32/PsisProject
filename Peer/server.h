@@ -29,5 +29,6 @@ typedef struct cmd_add{
 void insert(node* new_node);
 void printlist();
 
-node* search(uint32_t id);
+node* search_by_id(uint32_t id);
 int remove_node(uint32_t id);
+node* search_by_keyword(node* start, char* keyword);

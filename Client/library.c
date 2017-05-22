@@ -133,12 +133,19 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     send(peer_socket, buffer, sizeof(cmd_add), 0);
 
     /* Send image */
+    printf("SIZE OF PICTURE: %d\n", size);
     char send_buffer[size];
     while(!feof(picture)) {
-        fread(send_buffer, 1, sizeof(send_buffer), picture);
-        send(peer_socket, send_buffer, sizeof(send_buffer),0);
+        int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
+        if (read > 0){
+            int sent = send(peer_socket, send_buffer, sizeof(send_buffer),0);
+            printf("SENT: %d\n", sent);
+        }
+
         bzero(send_buffer, sizeof(send_buffer));
     }
+
+    fclose(picture);
 
     /* Receive identifier */
     char * recv_id = malloc(sizeof(cmd_add));
@@ -228,6 +235,104 @@ int gallery_delete_photo(int peer_socket, uint32_t id_photo){
     }
 
     return -1;
+}
+
+int gallery_get_photo(int peer_socket, uint32_t id_photo, char *file_name){
+
+    cmd_add request;
+    request.code = 15;
+    request.type = 0;
+    request.id = id_photo;
+
+    char * buffer = serialize_cmd(request);
+
+    if (send(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Delete photo request failed");
+        return -1;
+    }
+
+    if (recv(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Delete photo reply failed");
+        return -1;
+    }
+
+    cmd_add response;
+    memcpy(&response, buffer, sizeof(cmd_add));
+
+    if (response.type == 2){
+        return 0;
+    }
+
+    int photo_size = response.size;
+
+    char p_array[photo_size];
+    int nbytes = 1;
+    int cur_index = 0;
+    FILE *image;
+    image = fopen(file_name, "w");
+
+    while(cur_index < photo_size){
+        nbytes = recv(peer_socket, p_array, photo_size,0);
+        cur_index = cur_index + nbytes;
+        fwrite(p_array, 1, nbytes, image);
+        printf("%d\n", nbytes);
+    }
+            
+    fclose(image);
+
+    return 1;
+
+}
+
+int gallery_search_photo(int peer_socket, char * keyword, uint32_t ** id_photos){
+
+    cmd_add request;
+    request.code = 13;
+    request.type = 0;
+    strncpy(request.keyword, keyword, MAX_KEYWORD_LEN);
+
+    char * buffer = serialize_cmd(request);
+
+    if (send(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Search keyword request failed");
+        return -1;
+    }
+
+    if (recv(peer_socket, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Search keyword reply failed");
+        return -1;
+    }
+
+    cmd_add response;
+    memcpy(&response, buffer, sizeof(cmd_add));
+
+    if (response.type == 2){
+        return 0;
+    } else if (response.type == 1){
+
+        int num_keywords = response.size;
+        
+        uint32_t* ids = (uint32_t*) calloc(num_keywords, sizeof(uint32_t));
+
+        for (int i = 0; i < num_keywords; i++){
+            char recv_buffer[sizeof(cmd_add)];
+            if (recv(peer_socket, recv_buffer, sizeof(cmd_add), 0) < 0){
+                perror("Search keyword reply failed");
+                return -1;
+            }
+
+            memcpy(&response, recv_buffer, sizeof(cmd_add));
+            ids[i] = response.id;
+            //printf("NUM KEYWORDS: %d\n", ids[i]);
+        }
+
+        *id_photos = ids;
+
+        return num_keywords;
+    }
+
+    return -1;
+    
 }
 
 
