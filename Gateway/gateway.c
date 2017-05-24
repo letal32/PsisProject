@@ -1,4 +1,4 @@
-#include "server.h"
+#include "gateway.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -27,11 +27,11 @@ void * fromclient (void * arg);
 void * frompeers (void * arg);
 static void handler(int signum);
 void gw_udp_setup();
-node* insert(node *head, char *address, int port);
+node* insert(char *address, int port, int port_gw, int port_pr);
 node get_server(node *head, int index);
 char *serialize_msg(message m);
 int mod(int a, int b);
-node* remove_node(node *head, char *address, int port);
+node* remove_node(char *address, int port);
 void printlist();
 
 
@@ -132,19 +132,112 @@ void * frompeers (void * arg){
 
             /* Save the address in linked list*/
             pthread_rwlock_wrlock(&rwlock);
-            head = insert(head, inet_ntoa(recv_addr.sin_addr), mess.port);
+            node* node_down = insert(inet_ntoa(recv_addr.sin_addr), mess.port, mess.port_gw, mess.port_pr);
             num_servers++;
+
+            message to_new_peer;
+            to_new_peer.type = 1;
+            to_new_peer.subtype = 0;
+            
+            if (num_servers > 1){
+                to_new_peer.port_pr = head->port_pr;
+                strncpy(to_new_peer.up, head->address, 20);
+            } else {
+                to_new_peer.port_pr = -1;
+            }
+
+            message to_old_peer;
+            char old_peer[20];
+            int old_peer_port;
+            if (num_servers > 1){
+                to_old_peer.type = 1;
+                to_old_peer.subtype = 1;
+                to_old_peer.port_pr = node_down->next->port_pr;
+                strncpy(to_old_peer.up, node_down->next->address, 20);
+
+                strncpy(old_peer, node_down->address, 20);
+                old_peer_port = node_down->port_gw;
+            }
+
             pthread_rwlock_unlock(&rwlock);
 
-         } else {
+            memcpy(buffer, &to_new_peer, sizeof(to_new_peer));
+
+            if (sendto(s_udp_pr, buffer, sizeof(to_new_peer), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
+                perror("Failed UDP connection with peer");
+                exit(1);
+            }
+
+            if (num_servers > 1){
+
+                    struct sockaddr_in old_peer_addr;
+                    old_peer_addr.sin_family = AF_INET;
+                    old_peer_addr.sin_port = htons(old_peer_port);
+        
+                    if (!inet_aton(old_peer, &old_peer_addr.sin_addr)){
+                        perror("Old peer IP not valid");
+                        exit(1);
+                    }
+
+                    memcpy(buffer, &to_old_peer, sizeof(to_old_peer));
+                    if (sendto(s_udp_pr, buffer, sizeof(to_old_peer), 0, (struct sockaddr*)&old_peer_addr, sizeof(old_peer_addr)) < 0){
+                        perror("Failed UDP connection with peer");
+                        exit(1);
+                    }
+            }
+
+
+         } else if (mess.type == 2){
 
             /* Remove the address from the linked list*/
             pthread_rwlock_wrlock(&rwlock);
-            head = remove_node(head, inet_ntoa(recv_addr.sin_addr), mess.port);
+            node* node_down = remove_node(inet_ntoa(recv_addr.sin_addr), mess.port);
             num_servers--;
-            pthread_rwlock_unlock(&rwlock);
-         } 
 
+            printf("NUM SERVERS %d\n", num_servers);
+            message to_old_peer;
+            char old_peer[20];
+            int old_peer_port;
+            if (num_servers >= 1){
+                to_old_peer.type = 1;
+                to_old_peer.subtype = 0;
+                if (num_servers == 1){
+                    to_old_peer.port_pr = -1;
+                } else{
+                    to_old_peer.port_pr = node_down->next->port_pr;
+                    strncpy(to_old_peer.up, node_down->next->address, 20);
+                }
+
+                strncpy(old_peer, node_down->address, 20);
+                old_peer_port = node_down->port_gw;
+
+                printf("OLD PEER PORT %d\n", old_peer_port);
+            }
+
+            pthread_rwlock_unlock(&rwlock);
+
+            if (num_servers >= 1){
+
+                    struct sockaddr_in old_peer_addr;
+                    old_peer_addr.sin_family = AF_INET;
+                    old_peer_addr.sin_port = htons(old_peer_port);
+        
+                    if (!inet_aton(old_peer, &old_peer_addr.sin_addr)){
+                        perror("Old peer IP not valid");
+                        exit(1);
+                    }
+
+                    memcpy(buffer, &to_old_peer, sizeof(to_old_peer));
+                    if (sendto(s_udp_pr, buffer, sizeof(to_old_peer), 0, (struct sockaddr*)&old_peer_addr, sizeof(old_peer_addr)) < 0){
+                        perror("Failed UDP connection with peer");
+                        exit(1);
+                    }
+            }
+
+
+
+         } 
+         printf("NUM SERVERS %d\n", num_servers);
          printlist();
        
     }
@@ -196,14 +289,17 @@ void gw_udp_setup(){
     }   
 }
 
-node* insert(node *head, char *address, int port){
+//Return the node before the one added
+node* insert(char *address, int port, int port_gw, int port_pr){
     
     if (head == NULL){
-        node *new_head = malloc(sizeof(node));
-        strncpy(new_head->address, address, 20);
-        new_head->port = port;
-        new_head->next = NULL;
-        return new_head;
+        head = malloc(sizeof(node));
+        strncpy(head->address, address, 20);
+        head->port = port;
+        head->port_gw = port_gw;
+        head->port_pr = port_pr;
+        head->next = NULL;
+        return NULL;
     }
     
     node* cur_node = head;
@@ -215,23 +311,41 @@ node* insert(node *head, char *address, int port){
     cur_node->next = malloc(sizeof(node));
     strncpy(cur_node->next->address, address, 20); 
     cur_node->next->port = port;
+    cur_node->next->port_gw = port_gw;
+    cur_node->next->port_pr = port_pr;
     cur_node->next->next = NULL;
     
-    return head;
+    return cur_node;
     
 }
 
-node* remove_node(node *head, char *address, int port){
+//Return the node before the one removed
+node* remove_node(char *address, int port){
 
     if (head == NULL)
-        return head;
+        return NULL;
+
 
     if (strcmp(address, head->address) == 0 && port == head->port){
 
         node *new_head = head->next;
         free(head);
 
-        return new_head;
+        head = new_head;
+
+        if (head == NULL)
+            return NULL;
+
+        node* cur_node = head;
+        
+
+        while (cur_node->next != NULL){
+            cur_node = cur_node->next;
+        }
+
+        return cur_node;
+
+
     }
 
     node* cur_node = head;
@@ -243,13 +357,13 @@ node* remove_node(node *head, char *address, int port){
             node *temp = cur_node->next->next;
             free(cur_node->next);
             cur_node->next = temp;
-            return head;
+            return cur_node;
         }
 
         cur_node = cur_node->next;
     }    
 
-    return head;
+    return NULL;
 }
 
 node get_server(node *head, int index){
@@ -297,14 +411,14 @@ void printlist(){
     int k = 0;
     node * cur = head;
     while (cur->next != NULL){
-        printf("Entry %d: (%s), (%d)\n", k, cur->address, cur->port);
+        printf("Entry %d: (%s), (%d), (%d), (%d)\n", k, cur->address, cur->port, cur->port_gw, cur->port_pr);
         fflush(stdout);
         k++;
         cur = cur->next;
     }
 
     if (cur->next == NULL){
-        printf("Entry %d: (%s), (%d)\n", k, cur->address, cur->port);
+        printf("Entry %d: (%s), (%d), (%d), (%d)\n", k, cur->address, cur->port, cur->port_gw, cur->port_pr);
         fflush(stdout);
         k++;
     }

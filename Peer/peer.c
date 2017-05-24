@@ -21,12 +21,23 @@
 #define MAXCONN 50
 #define MAXSTRLEN 101
 
-int s_tcp_fd;
-int s_udp_fd;
+int s_tcp_fd; //TCP socket for accepting client requests
+int s_udp_fd; //UDP socket for communicating with the gateway
+int s_tcp_peer_fd; //TCP socket for accepting connections from other peers
+
+
 int tcp_port;
+int tcp_port_pr;
+int udp_port_gw;
+
+
 char *gw_ip;
 int gw_port;
 node *head = NULL;
+
+char peer_up[20];
+int port_peer_up = -1;
+
 
 int index_s = 0;
 int index_t = 0;
@@ -45,7 +56,7 @@ char *serialize_cmd(cmd_add m){
 static void handler(int signum)
 {   
     message m;
-    m.type = 1;
+    m.type = 2;
     m.port = tcp_port;
     
     char *buffer;
@@ -105,16 +116,28 @@ void server_udp_setup(){
         perror("DGRAM socket error");
         exit(1);
     }
+
+    struct sockaddr_in server_udp_addr;
+    server_udp_addr.sin_family = AF_INET;
+    server_udp_addr.sin_port = htons(udp_port_gw);
+    server_udp_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    
+    if (bind(s_udp_fd, (struct sockaddr *)&server_udp_addr, sizeof(server_udp_addr)) < 0){
+        perror("Binding error");
+        exit(1);
+    }  
     
 }
 
-void server_to_gw(){
+void * listen_to_gw(){
     
     message m;
     m.type = 0;
     m.port = tcp_port;
+    m.port_gw = udp_port_gw;
+    m.port_pr = tcp_port_pr;
 
-    printf("%d\n", m.port);
+    //printf("%d\n", m.port);
     
     char *buffer;
     buffer = malloc(sizeof(m));
@@ -134,6 +157,38 @@ void server_to_gw(){
     if (sendto(s_udp_fd, buffer, sizeof(m), 0, (struct sockaddr*)&gw_addr, sizeof(gw_addr)) < 0){
         perror("Failed UDP connection with gateway");
         exit(1);
+    }
+
+    if (recvfrom(s_udp_fd, buffer, sizeof(m), 0, NULL, NULL) < 0){
+        perror("Address UP reception failed");
+        exit(1);
+    }
+
+    message mess;
+    memcpy(&mess, buffer, sizeof(m));
+
+    if (mess.port_pr > 0){
+        strncpy(peer_up, mess.up, 20);
+        port_peer_up = mess.port_pr;
+
+        printf("ADDRESS UP: %s\n", peer_up);
+        printf("PORT UP: %d\n", port_peer_up );
+    }
+
+    while(1){
+
+        if (recvfrom(s_udp_fd, buffer, sizeof(m), 0, NULL, NULL) < 0){
+            perror("Address UP reception failed");
+            exit(1);
+        }
+
+        memcpy(&m, buffer, sizeof(m));
+        strncpy(peer_up, m.up, 20);
+        port_peer_up = m.port_pr;
+
+        printf("ADDRESS UP: %s\n", peer_up);
+        printf("PORT UP: %d\n", port_peer_up );
+
     }
 
 }
@@ -574,7 +629,11 @@ int main(int argc, char *argv[]){
         exit(1);
     }
     
+    printf("PID: %d\n", getpid());
+
     tcp_port = 3000 + getpid();
+    tcp_port_pr = 2000 + getpid();
+    udp_port_gw = 1000 + getpid();
     
     gw_ip = argv[1];
     gw_port = atoi(argv[2]);
@@ -596,8 +655,13 @@ int main(int argc, char *argv[]){
     server_tcp_setup();
     
     /* Send sock_stream address to gw */
-    
-    server_to_gw();
+    pthread_t gw_msg;
+
+    int err = pthread_create(&gw_msg, NULL, listen_to_gw, NULL);
+    if(err != 0){
+        perror("Thread creation error");
+        exit(-1);
+    }
 
     pthread_t threads[MAXCONN];
     int sockets[MAXCONN];
