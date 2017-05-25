@@ -348,18 +348,18 @@ void * listen_to_peer(){
         char buffer[sizeof(cmd_add)];
         int nby;
         nby=recv(new_tcp_fd, buffer, sizeof(cmd_add), 0);
-        printf("NBY: %d\n", nby );
-        fflush(stdout);
+        //printf("NBY: %d\n", nby );
+        //fflush(stdout);
 
         memcpy(&command, buffer, sizeof(cmd_add));
 
         //Download all pictures from above peer
         if (command.code == 20){
-            printf("I'M HERE PLEASE\n");
+            //printf("I'M HERE PLEASE\n");
             fflush(stdout);
 
             int num_pictures = command.size;
-            printf("NUM PIC: %d\n", num_pictures );
+            //printf("NUM PIC: %d\n", num_pictures );
             fflush(stdout);
 
             for (int i = 0; i < num_pictures; i++){
@@ -377,7 +377,7 @@ void * listen_to_peer(){
                 picture->identifier = pic_info.id;
 
                 int photo_size = pic_info.size;
-                printf("PIC SIZE: %d\n", photo_size);
+                //printf("PIC SIZE: %d\n", photo_size);
                 char p_array[photo_size];
                 int nbytes = 0;
                 int cur_index = 0;
@@ -395,11 +395,9 @@ void * listen_to_peer(){
             
                 fclose(image);
 
-                printf("INSERTING PICTURE\n");
-                fflush(stdout);
+                //printf("INSERTING PICTURE\n");
                 insert(picture);
-                printf("END INSERTING PICTURE\n");
-                fflush(stdout);
+                //printf("END INSERTING PICTURE\n");
 
                 cmd_add response;
                 response.code = 20;

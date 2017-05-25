@@ -199,6 +199,7 @@ void * frompeers (void * arg){
 
             /* Remove the address from the linked list*/
             pthread_rwlock_wrlock(&rwlock);
+            //printf("MESS PORT: %d\n", mess.port);
             node* node_down = remove_node(inet_ntoa(recv_addr.sin_addr), mess.port);
 
             message to_old_peer;
@@ -210,14 +211,20 @@ void * frompeers (void * arg){
                 if (num_servers == 1){
                     to_old_peer.port_pr = -1;
                 } else{
-                    to_old_peer.port_pr = node_down->next->port_pr;
-                    strncpy(to_old_peer.up, node_down->next->address, 20);
+                    if (node_down->next != NULL){
+                      to_old_peer.port_pr = node_down->next->port_pr;
+                      strncpy(to_old_peer.up, node_down->next->address, 20);
+                    } else {
+                      to_old_peer.port_pr = head->port_pr;
+                      strncpy(to_old_peer.up, head->address, 20);
+                    }
+                    
                 }
 
                 strncpy(old_peer, node_down->address, 20);
                 old_peer_port = node_down->port_gw;
 
-                printf("OLD PEER PORT %d\n", old_peer_port);
+                //printf("OLD PEER PORT %d\n", old_peer_port);
             }
 
             pthread_rwlock_unlock(&rwlock);
@@ -333,6 +340,7 @@ node* remove_node(char *address, int port){
 
     if (strcmp(address, head->address) == 0 && port == head->port){
 
+
         if (head->next == NULL){
           free(head);
           head = NULL;
@@ -345,17 +353,14 @@ node* remove_node(char *address, int port){
 
         head = new_head;
 
-        if (head == NULL)
-            return NULL;
-
         node* cur_node = head;
         
-
         while (cur_node->next != NULL){
             cur_node = cur_node->next;
         }
 
         num_servers--;
+
 
         return cur_node;
 
@@ -366,13 +371,21 @@ node* remove_node(char *address, int port){
     
     while (cur_node->next != NULL){
 
+
         if (strcmp(address, cur_node-> next-> address) == 0 && port == cur_node-> next-> port){
 
-            node *temp = cur_node->next->next;
+            node *temp;
+
+            if (cur_node->next->next != NULL)
+              temp = cur_node->next->next;
+            else
+              temp = NULL;
+
             free(cur_node->next);
             cur_node->next = temp;
 
             num_servers--;
+
             return cur_node;
         }
 
