@@ -34,6 +34,7 @@ int udp_port_gw;
 char *gw_ip;
 int gw_port;
 node *head = NULL;
+int num_nodes = 0;
 
 char peer_up[20];
 int port_peer_up = -1;
@@ -189,8 +190,233 @@ void * listen_to_gw(){
         printf("ADDRESS UP: %s\n", peer_up);
         printf("PORT UP: %d\n", port_peer_up );
 
+        //If new peer added start uploading pictures
+        pthread_t up_pic;
+
+        if (num_nodes > 0 && m.subtype == 1){
+
+            int err = pthread_create(&up_pic, NULL, upload_pic, NULL);
+            if (err < 0){
+                perror("Thread creation error");
+                break;
+            }
+
+        }
+
     }
 
+}
+
+
+void * upload_pic(){
+
+    struct sockaddr_in peer_addr;
+    peer_addr.sin_family = AF_INET;
+    peer_addr.sin_port = htons(port_peer_up);
+        
+    if (!inet_aton(peer_up, &peer_addr.sin_addr)){
+        perror("UP peer IP not valid");
+        pthread_exit(NULL);
+    }
+
+    int tcp_tmp = socket(AF_INET, SOCK_STREAM, 0);
+    
+    if (tcp_tmp == -1) {
+        perror("STREAM socket error");
+        pthread_exit(NULL);
+    }   
+
+    if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+        perror("TCP connection failed");
+        pthread_exit(NULL);
+    }
+
+    cmd_add command;
+    command.code = 20;
+    command.size = num_nodes;
+
+    char buffer[sizeof(cmd_add)];
+    memcpy(buffer, &command, sizeof(cmd_add));
+
+    if (send(tcp_tmp, buffer, sizeof(cmd_add), 0) < 0){
+        perror("Send error in replication");
+        pthread_exit(NULL);
+    }
+
+    //TODO: Sync!!!!
+
+    node* cur_node = head;
+    for (int i = 0; i < num_nodes; i++){
+
+        cmd_add pic_info;
+        strncpy(pic_info.name, cur_node->name, MAX_NAME_LEN);
+        strncpy(pic_info.keyword, cur_node->keywords, MAX_KEYWORD_TOT_LEN);
+        pic_info.id = cur_node->identifier;
+
+
+        FILE *picture;
+        picture = fopen(pic_info.name, "r");
+        if (picture == NULL){
+            perror("File not found");
+            pthread_exit(NULL);
+        }
+
+        int size;
+        fseek(picture, 0, SEEK_END);
+        size = ftell(picture);
+        fseek(picture, 0, SEEK_SET);
+
+        pic_info.size = size;
+
+        memcpy(buffer, &pic_info, sizeof(cmd_add));
+        if (send(tcp_tmp, buffer, sizeof(cmd_add), 0) < 0){
+            perror("Send error in replication while sending pic info");
+            pthread_exit(NULL);
+        }
+
+        /* Send image */
+        char send_buffer[size];
+        while(!feof(picture)) {
+            int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
+            if (read > 0){
+                int sent = send(tcp_tmp, send_buffer, sizeof(send_buffer),0);
+                printf("SENT: %d\n", sent);
+            }
+
+            bzero(send_buffer, sizeof(send_buffer));
+        }
+
+        fclose(picture);
+
+        if (cur_node->next != NULL)
+            cur_node = cur_node->next;
+
+        cmd_add response;
+        if (recv(tcp_tmp, buffer, sizeof(cmd_add), 0) < 0){
+            perror("Confirmation picture downloaded success");
+            break;
+        }
+        memcpy(&response, buffer, sizeof(cmd_add));
+
+        if (response.type != 1){
+            break;
+        }
+
+    }
+
+    close(tcp_tmp);
+    pthread_exit(NULL);
+
+}
+
+void * listen_to_peer(){
+
+    printf("IM HERE GW\n");
+    fflush(stdout);
+
+    s_tcp_peer_fd = socket(AF_INET, SOCK_STREAM, 0);
+    
+    if (s_tcp_peer_fd == -1) {
+        perror("STREAM socket error");
+        exit(1);
+    }
+    
+    struct sockaddr_in server_tcp_peer_addr;
+    server_tcp_peer_addr.sin_family = AF_INET;
+    server_tcp_peer_addr.sin_port = htons(tcp_port_pr);
+    server_tcp_peer_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    
+    if (bind(s_tcp_peer_fd, (struct sockaddr *)&server_tcp_peer_addr, sizeof(server_tcp_peer_addr)) < 0){
+        perror("Binding error");
+        exit(1);
+    } 
+
+    while (1){
+
+        if (listen(s_tcp_peer_fd, MAXCONN) < 0){
+            perror("Listen problem");
+        }
+
+        int new_tcp_fd;
+        new_tcp_fd = accept(s_tcp_peer_fd, NULL, NULL);
+        if ( new_tcp_fd < 0){
+            perror("Accept problem");
+            exit(1);
+        }
+
+        cmd_add command;
+        char buffer[sizeof(cmd_add)];
+        int nby;
+        nby=recv(new_tcp_fd, buffer, sizeof(cmd_add), 0);
+        printf("NBY: %d\n", nby );
+        fflush(stdout);
+
+        memcpy(&command, buffer, sizeof(cmd_add));
+
+        //Download all pictures from above peer
+        if (command.code == 20){
+            printf("I'M HERE PLEASE\n");
+            fflush(stdout);
+
+            int num_pictures = command.size;
+            printf("NUM PIC: %d\n", num_pictures );
+            fflush(stdout);
+
+            for (int i = 0; i < num_pictures; i++){
+
+                cmd_add pic_info;
+                if (recv(new_tcp_fd, buffer, sizeof(cmd_add),0) < 0){
+                    perror("Receive problem from peer in download all pictures");
+                    break;
+                }
+
+                memcpy(&pic_info, buffer, sizeof(cmd_add));
+                node * picture = malloc(sizeof(node));
+                strncpy(picture->name, pic_info.name, MAX_NAME_LEN);
+                strncpy(picture->keywords, pic_info.keyword, MAX_KEYWORD_TOT_LEN);
+                picture->identifier = pic_info.id;
+
+                int photo_size = pic_info.size;
+                printf("PIC SIZE: %d\n", photo_size);
+                char p_array[photo_size];
+                int nbytes = 0;
+                int cur_index = 0;
+                FILE *image;
+                image = fopen(pic_info.name, "w");
+
+                while(cur_index < photo_size){
+                    nbytes = recv(new_tcp_fd, p_array, photo_size,0);
+                    cur_index = cur_index + nbytes;
+                    fwrite(p_array, 1, nbytes, image);
+                    printf("%d\n", nbytes);
+                    printf("%d\n", cur_index );
+                    fflush(stdout);
+                }
+            
+                fclose(image);
+
+                printf("INSERTING PICTURE\n");
+                fflush(stdout);
+                insert(picture);
+                printf("END INSERTING PICTURE\n");
+                fflush(stdout);
+
+                cmd_add response;
+                response.code = 20;
+                response.type = 1;
+                memcpy(buffer, &response, sizeof(cmd_add));
+                if (send(new_tcp_fd, buffer, sizeof(cmd_add),0) < 0){
+                    perror("Receive problem from peer in download all pictures");
+                    break;
+                }
+
+            }
+
+            close(new_tcp_fd);
+        }
+
+
+    }
 }
 
 int accept_connection(){
@@ -512,6 +738,8 @@ void insert(node* new_node){
         new_node->next = head;
         head = new_node;
     }
+
+    num_nodes++;
     
 }
 
@@ -662,6 +890,15 @@ int main(int argc, char *argv[]){
         perror("Thread creation error");
         exit(-1);
     }
+
+    pthread_t pr_mess;
+
+    err = pthread_create(&pr_mess, NULL, listen_to_peer, NULL);
+    if (err != 0){
+        perror("Thread creation error");
+        exit(-1);
+    }
+
 
     pthread_t threads[MAXCONN];
     int sockets[MAXCONN];

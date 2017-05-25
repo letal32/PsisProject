@@ -81,6 +81,8 @@ int gallery_connect(char * host, in_port_t port){
     	return 0;
     }
 
+    printf("%s\n", gw_mess.address);
+
     free(buffer_rcv);
 
     /* Establish a connection with the peer */
@@ -95,9 +97,11 @@ int gallery_connect(char * host, in_port_t port){
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(gw_mess.port);
+
+    printf("%s\n", gw_mess.address);
         
     if (!inet_aton(gw_mess.address, &server_addr.sin_addr)){
-        perror("Gateway IP not valid");
+        perror("Gateway IP 2 not valid");
         return -1;
     }
     

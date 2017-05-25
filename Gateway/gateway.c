@@ -84,14 +84,22 @@ void * fromclient (void * arg){
           } else {
             
              pthread_rwlock_rdlock(&rwlock);
-             node server = get_server(head, cur_server_index);
-             pthread_rwlock_unlock(&rwlock);
+             node server;
+             if (cur_server_index < num_servers){
+                server = get_server(head, cur_server_index);
+                cur_server_index++;
+             } else {
+                server = *head;
+                cur_server_index = 0;
+             }
 
              cur_server_index = mod(cur_server_index + 1, num_servers);
              assigned_server.type = 1;
-             strcpy(assigned_server.address, server.address);
+             strncpy(assigned_server.address, server.address,20);
              assigned_server.port = server.port;
-                
+
+             pthread_rwlock_unlock(&rwlock);
+
              char *buffer = serialize_msg(assigned_server);
                 
              if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
@@ -192,9 +200,7 @@ void * frompeers (void * arg){
             /* Remove the address from the linked list*/
             pthread_rwlock_wrlock(&rwlock);
             node* node_down = remove_node(inet_ntoa(recv_addr.sin_addr), mess.port);
-            num_servers--;
 
-            printf("NUM SERVERS %d\n", num_servers);
             message to_old_peer;
             char old_peer[20];
             int old_peer_port;
@@ -237,7 +243,6 @@ void * frompeers (void * arg){
 
 
          } 
-         printf("NUM SERVERS %d\n", num_servers);
          printlist();
        
     }
@@ -328,6 +333,13 @@ node* remove_node(char *address, int port){
 
     if (strcmp(address, head->address) == 0 && port == head->port){
 
+        if (head->next == NULL){
+          free(head);
+          head = NULL;
+          num_servers--;
+          return NULL;
+        }
+
         node *new_head = head->next;
         free(head);
 
@@ -343,6 +355,8 @@ node* remove_node(char *address, int port){
             cur_node = cur_node->next;
         }
 
+        num_servers--;
+
         return cur_node;
 
 
@@ -357,6 +371,8 @@ node* remove_node(char *address, int port){
             node *temp = cur_node->next->next;
             free(cur_node->next);
             cur_node->next = temp;
+
+            num_servers--;
             return cur_node;
         }
 
@@ -381,6 +397,8 @@ node get_server(node *head, int index){
         perror("Index out of bounds");
         exit(1);
     }
+
+    //printf("%s\n", cur_node->address);
     
     return *cur_node;
 
