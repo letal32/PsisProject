@@ -545,14 +545,8 @@ void * listen_to_peer(){
         //ADD KEYWORD REPLICATION
         } else if (command.code == 22){
 
-            printf("COMMAND CODE %d %d %d\n", command.code, command.source, command.id);
-            fflush(stdout);
             if (command.source != peer_id){
-                printf("Replicate keyword\n");
-                fflush(stdout);
                 node * photo_info = search_by_id(command.id);
-                printf("Replicate keyword\n" );
-                fflush(stdout);
                 strncpy(photo_info->keywords + strlen(photo_info->keywords), command.keyword, MAX_KEYWORD_TOT_LEN);
                 printlist();
 
@@ -585,6 +579,42 @@ void * listen_to_peer(){
                 }
 
             }
+        } else if (command.code == 23) {
+
+            if (command.source != peer_id){
+                remove_node(command.id);
+                printlist();
+
+                struct sockaddr_in peer_addr;
+                peer_addr.sin_family = AF_INET;
+                peer_addr.sin_port = htons(port_peer_up);
+                            
+                if (!inet_aton(peer_up, &peer_addr.sin_addr)){
+                    perror("UP peer IP not valid");
+                    break;
+                }
+
+                int tcp_tmp = socket(AF_INET, SOCK_STREAM, 0);
+                        
+                if (tcp_tmp == -1) {
+                    perror("STREAM socket error");
+                    break;
+                }   
+
+                if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                    perror("TCP connection failed");
+                    break;
+                }
+
+                memcpy(buffer, &command, sizeof(cmd_add));
+
+                if (send(tcp_tmp, buffer, sizeof(cmd_add), 0) < 0){
+                    perror("Send error in replication");
+                    break;
+                }
+
+            }
+
         }
 
         close(new_tcp_fd);
@@ -781,14 +811,8 @@ void * serve_client (void * sock){
                         break;
                     }
 
-                        printf("I'M OUTSIDE CARALHO!\n");
-                        fflush(stdout);
-
                     if (port_peer_up > 0){
                         //Add keyword to all other peers
-
-                        printf("I'M HERE CARALHO!\n");
-                        fflush(stdout);
 
                         struct sockaddr_in peer_addr;
                         peer_addr.sin_family = AF_INET;
@@ -851,6 +875,46 @@ void * serve_client (void * sock){
                         perror("Photo delete response error");
                         break;
                     }
+
+
+                    //Replicate the delete
+                    if (port_peer_up > 0){
+                        //Add keyword to all other peers
+
+                        struct sockaddr_in peer_addr;
+                        peer_addr.sin_family = AF_INET;
+                        peer_addr.sin_port = htons(port_peer_up);
+                            
+                        if (!inet_aton(peer_up, &peer_addr.sin_addr)){
+                            perror("UP peer IP not valid");
+                            break;
+                        }
+
+                        int tcp_tmp = socket(AF_INET, SOCK_STREAM, 0);
+                        
+                        if (tcp_tmp == -1) {
+                            perror("STREAM socket error");
+                            break;
+                        }   
+
+                        if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                            perror("TCP connection failed");
+                            break;
+                        }
+
+                        cmd_add upload;
+                        upload.code = 23;
+                        upload.type = 0;
+                        upload.source = peer_id;
+                        upload.id = cmd.id;
+
+                        memcpy(response, &upload, sizeof(cmd_add));
+                        if (send(tcp_tmp, response, sizeof(cmd_add), 0) < 0){
+                            perror("Keyword send response error");
+                            break;
+                        }
+
+                    }                   
 
                 }
 
