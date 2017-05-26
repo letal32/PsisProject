@@ -22,6 +22,7 @@ int s_udp_pr;
 node *head = NULL;
 int num_servers = 0;
 pthread_rwlock_t rwlock;
+int counter;
 
 void * fromclient (void * arg);
 void * frompeers (void * arg);
@@ -146,6 +147,7 @@ void * frompeers (void * arg){
             message to_new_peer;
             to_new_peer.type = 1;
             to_new_peer.subtype = 0;
+            to_new_peer.id = counter++; 
             
             if (num_servers > 1){
                 to_new_peer.port_pr = head->port_pr;

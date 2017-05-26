@@ -1,4 +1,3 @@
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -29,6 +28,8 @@ int s_tcp_peer_fd; //TCP socket for accepting connections from other peers
 int tcp_port;
 int tcp_port_pr;
 int udp_port_gw;
+
+int peer_id = -1;
 
 
 char *gw_ip;
@@ -167,6 +168,9 @@ void * listen_to_gw(){
 
     message mess;
     memcpy(&mess, buffer, sizeof(m));
+    peer_id = mess.id;
+
+    printf("PEER ID: %d\n", peer_id );
 
     if (mess.port_pr > 0){
         strncpy(peer_up, mess.up, 20);
@@ -410,10 +414,142 @@ void * listen_to_peer(){
 
             }
 
-            close(new_tcp_fd);
+            
+
+        } else if (command.code = 21){
+
+            if (command.source == peer_id){
+
+                cmd_add response;
+                response.type = 2;
+
+                memcpy(buffer, &response, sizeof(cmd_add));
+
+                if (send(new_tcp_fd, buffer, sizeof(cmd_add), 0) < 0){
+                    perror("Send error in replication");
+                    break;
+                }
+
+            } else {
+
+                cmd_add response;
+                response.type = 1;
+
+                memcpy(buffer, &response, sizeof(cmd_add));
+
+                if (send(new_tcp_fd, buffer, sizeof(cmd_add), 0) < 0){
+                    perror("Send error in replication");
+                    break;
+                }
+
+                node * picture = malloc(sizeof(node));
+                strncpy(picture->name, command.name, MAX_NAME_LEN);
+                strncpy(picture->keywords, command.keyword, MAX_KEYWORD_TOT_LEN);
+                picture->identifier = command.id;
+                int photo_size = command.size;
+                int cur_index = 0;
+                int nbytes = 0;
+
+                char p_array[photo_size];
+                FILE *image;
+                image = fopen(command.name, "w");
+
+                while(cur_index < photo_size){
+                    nbytes = recv(new_tcp_fd, p_array, photo_size,0);
+                    cur_index = cur_index + nbytes;
+                    fwrite(p_array, 1, nbytes, image);
+                    printf("%d\n", nbytes);
+                    printf("%d\n", cur_index );
+                    fflush(stdout);
+                }
+            
+                fclose(image);
+
+                insert(picture);
+
+                //Replicate the picture to the peer down
+                struct sockaddr_in peer_addr;
+                peer_addr.sin_family = AF_INET;
+                peer_addr.sin_port = htons(port_peer_up);
+                            
+                if (!inet_aton(peer_up, &peer_addr.sin_addr)){
+                    perror("UP peer IP not valid");
+                    break;
+                }
+
+                int tcp_tmp = socket(AF_INET, SOCK_STREAM, 0);
+                        
+                if (tcp_tmp == -1) {
+                    perror("STREAM socket error");
+                    break;
+                }   
+
+                if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                    perror("TCP connection failed");
+                    break;
+                }
+
+                image = fopen(command.name, "r");
+                if (image == NULL){
+                        perror("File not found");
+                        exit(1);
+                }
+
+                fseek(image, 0, SEEK_END);
+                photo_size = ftell(image);
+                fseek(image, 0, SEEK_SET);
+
+
+                cmd_add upload;
+                upload.code = 21;
+                upload.size = photo_size;
+                upload.source = command.source;
+                strncpy(upload.name, command.name, MAX_NAME_LEN);
+                upload.id = command.id;
+
+                memcpy(buffer, &upload, sizeof(cmd_add));
+
+                if (send(tcp_tmp, buffer, sizeof(cmd_add), 0) < 0){
+                    perror("Send error in replication");
+                    break;
+                }
+
+                if (recv(tcp_tmp, buffer, sizeof(cmd_add), 0) < 0){
+                    perror("Send error in replication");
+                    break;
+                }
+
+                memcpy(&upload, buffer, sizeof(cmd_add));
+
+                if (upload.type == 1){
+
+                    /* Send image */
+                    char send_buffer[photo_size];
+                    while(!feof(image)) {
+                        int read = fread(send_buffer, 1, sizeof(send_buffer), image);
+                        if (read > 0){
+                            int sent = send(tcp_tmp, send_buffer, sizeof(send_buffer),0);
+                            printf("SENT: %d\n", sent);
+                        }
+
+                        bzero(send_buffer, sizeof(send_buffer));
+                    }
+
+                    fclose(image);
+
+                }                      
+
+
+
+
+            }
+
+
+
+
         }
 
-
+        close(new_tcp_fd);
     }
 }
 
@@ -434,9 +570,9 @@ int accept_connection(){
     return new_tcp_fd;
 }
 
-void * serve_client (void * socket){
+void * serve_client (void * sock){
 
-        int * new_tcp_fd = (int *)socket;
+        int * new_tcp_fd = (int *)sock;
 
         printf("Client is being served on socket %d\n", *new_tcp_fd);
         
@@ -479,7 +615,8 @@ void * serve_client (void * socket){
                 node *new_image = malloc(sizeof(node));
                 strncpy(new_image->name, cmd.name,100);
                 strncpy(new_image->keywords, "\0", 100);
-                new_image->identifier = clock() * getpid();
+                uint32_t pic_id = clock() * getpid();
+                new_image->identifier = pic_id;
 
                 insert(new_image);
                 printlist();
@@ -497,6 +634,84 @@ void * serve_client (void * socket){
                     perror("Add photo response problem");
                     break;
                 }
+
+                if (port_peer_up > 0){
+
+                        struct sockaddr_in peer_addr;
+                        peer_addr.sin_family = AF_INET;
+                        peer_addr.sin_port = htons(port_peer_up);
+                            
+                        if (!inet_aton(peer_up, &peer_addr.sin_addr)){
+                            perror("UP peer IP not valid");
+                            break;
+                        }
+
+                        int tcp_tmp = socket(AF_INET, SOCK_STREAM, 0);
+                        
+                        if (tcp_tmp == -1) {
+                            perror("STREAM socket error");
+                            break;
+                        }   
+
+                        if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                            perror("TCP connection failed");
+                            break;
+                        }
+
+                        FILE *picture;
+                        picture = fopen(cmd.name, "r");
+                        if (picture == NULL){
+                            perror("File not found");
+                            exit(1);
+                        }
+
+                        fseek(picture, 0, SEEK_END);
+                        photo_size = ftell(picture);
+                        fseek(picture, 0, SEEK_SET);
+
+
+                        cmd_add upload;
+                        upload.code = 21;
+                        upload.type = 0;
+                        upload.size = photo_size;
+                        upload.source = peer_id;
+                        strncpy(upload.name, cmd.name, MAX_NAME_LEN);
+                        upload.id = pic_id;
+
+                        memcpy(buffer, &upload, sizeof(cmd_add));
+
+                        if (send(tcp_tmp, buffer, sizeof(cmd_add), 0) < 0){
+                            perror("Send error in replication");
+                            break;
+                        }
+
+                        if (recv(tcp_tmp, buffer, sizeof(cmd_add), 0) < 0){
+                            perror("Send error in replication");
+                            break;
+                        }
+
+                        memcpy(&upload, buffer, sizeof(cmd_add));
+
+                        if (upload.type == 1){
+
+                            /* Send image */
+                            char send_buffer[photo_size];
+                            while(!feof(picture)) {
+                                int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
+                                if (read > 0){
+                                    int sent = send(tcp_tmp, send_buffer, sizeof(send_buffer),0);
+                                    printf("SENT: %d\n", sent);
+                                }
+
+                                bzero(send_buffer, sizeof(send_buffer));
+                            }
+
+                            fclose(picture);
+                        }                      
+
+                }
+
+
 
             } else if (cmd.code == 11){
 

@@ -8,6 +8,7 @@ typedef struct message_gw{
     int type;
     int subtype;
     char address[20];
+    int id;
     int port;
     int port_gw;
     int port_pr;
@@ -19,6 +20,7 @@ typedef struct cmd_add{
 	int code;
 	int type;
 	int size;
+    int source;
 	char name[MAX_NAME_LEN];
 	char keyword[MAX_KEYWORD_TOT_LEN];
 	uint32_t id;
