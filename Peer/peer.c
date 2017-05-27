@@ -1173,11 +1173,16 @@ int remove_node(uint32_t id){
 
     if (head->identifier == id){
 
-        node *new_head = head->next;
-        free(head);
-        head = new_head;
-        num_nodes--;
-        return 1;
+        int rem = remove(head->name);
+        if (rem == 0){
+            node *new_head = head->next;
+            free(head);
+            head = new_head;
+            num_nodes--;
+            return 1;
+        }else{
+            return 0;
+        }
     }
 
     node* cur_node = head;
@@ -1186,11 +1191,16 @@ int remove_node(uint32_t id){
 
         if (cur_node->next->identifier == id){
 
-            node *temp = cur_node->next->next;
-            free(cur_node->next);
-            cur_node->next = temp;
-            num_nodes--;
-            return 1;
+            int rem = remove(cur_node->next->name);
+            if (rem == 0){
+                node *temp = cur_node->next->next;
+                free(cur_node->next);
+                cur_node->next = temp;
+                num_nodes--;
+                return 1;
+            } else {
+                return 0;
+            }
         }
 
         cur_node = cur_node->next;
