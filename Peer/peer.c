@@ -1176,6 +1176,7 @@ int remove_node(uint32_t id){
         node *new_head = head->next;
         free(head);
         head = new_head;
+        num_nodes--;
         return 1;
     }
 
@@ -1188,6 +1189,7 @@ int remove_node(uint32_t id){
             node *temp = cur_node->next->next;
             free(cur_node->next);
             cur_node->next = temp;
+            num_nodes--;
             return 1;
         }
 
