@@ -486,9 +486,19 @@ void * listen_to_peer(){
                     break;
                 }   
 
-                if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
-                    perror("TCP connection failed");
-                    break;
+                int status = 0;
+                while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                    perror("TCP connection failed adding picture");
+                    status = get_new_peer_address(&peer_addr);
+
+                    if (status == -1){
+                        break;
+                    }
+                    printf("I'M HERE\n");
+                }
+
+                if (status == -1){
+                    continue;
                 }
 
                 image = fopen(command.name, "r");
@@ -721,10 +731,16 @@ void * serve_client (void * sock){
                             break;
                         }   
 
-                        if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
-                            perror("TCP connection failed");
-                            break;
+                        int status = 0;
+                        while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0) {
+                            perror("TCP connection failed, retrieving new peer address");
+                            status = get_new_peer_address(&peer_addr);
+                            if (status == -1)
+                                break;
                         }
+
+                        if (status == -1)
+                            continue;
 
                         FILE *picture;
                         picture = fopen(cmd.name, "r");
@@ -1224,6 +1240,58 @@ void printlist(){
     }
 
     printf("(Name : %s , keywords: %s, identifier: %u)\n", cur_node->name, cur_node->keywords, cur_node->identifier );
+}
+
+int get_new_peer_address(struct sockaddr_in* peer_addr){
+    message new_addr;
+    new_addr.type = 3;
+    strncpy(new_addr.up, peer_up, 20);
+    new_addr.port_pr = port_peer_up;
+
+    char buffer[sizeof(message)];
+    memcpy(buffer, &new_addr, sizeof(message));
+
+    struct sockaddr_in gw_addr;
+    gw_addr.sin_family = AF_INET;
+    gw_addr.sin_port = htons(gw_port);
+        
+    if (!inet_aton(gw_ip, &gw_addr.sin_addr)){
+        perror("Gateway IP not valid");
+        exit(1);
+    }
+
+    int udp_tmp = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (sendto(udp_tmp, buffer, sizeof(message), 0, (struct sockaddr*)&gw_addr, sizeof(gw_addr)) < 0){
+        perror("Failed UDP connection with gateway");
+        exit(1);
+    }
+
+    if (recvfrom(udp_tmp, buffer, sizeof(message), 0, NULL, NULL) < 0){
+        perror("Address UP reception failed");
+        exit(1);
+    }    
+
+    message response;
+    memcpy(&response, buffer, sizeof(message));
+    strncpy(peer_up, response.up, 20);
+    port_peer_up = response.port_pr;
+
+    if (port_peer_up == -1){
+        return -1;
+    }
+
+    (*peer_addr).sin_family = AF_INET;
+    (*peer_addr).sin_port = htons(port_peer_up);
+                            
+    if (!inet_aton(peer_up, &((*peer_addr).sin_addr))){
+        perror("UP peer IP not valid");
+        exit(1);
+    }
+
+    close(udp_tmp);
+
+    return 0;
 }
 
 

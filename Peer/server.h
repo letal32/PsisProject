@@ -41,3 +41,4 @@ void * upload_pic();
 node* search_by_id(uint32_t id);
 int remove_node(uint32_t id);
 node* search_by_keyword(node* start, char* keyword);
+int get_new_peer_address(struct sockaddr_in* peer_addr);

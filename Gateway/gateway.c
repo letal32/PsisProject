@@ -251,7 +251,47 @@ void * frompeers (void * arg){
 
 
 
+         } else if (mess.type == 3){
+
+            node *down = remove_node(mess.up, mess.port_pr);
+
+            if (down == NULL){
+              printf("NULL VALUE\n");
+              fflush(stdout);
+            }
+
+
+            message to_old_peer;
+            if (num_servers >= 1){
+                to_old_peer.type = 3;
+                to_old_peer.subtype = 0;
+                if (num_servers == 1){
+                    to_old_peer.port_pr = -1;
+                } else{
+                    if (down->next != NULL){
+                      to_old_peer.port_pr = down->next->port_pr;
+                      strncpy(to_old_peer.up, down->next->address, 20);
+                    } else {
+                      to_old_peer.port_pr = head->port_pr;
+                      strncpy(to_old_peer.up, head->address, 20);
+                    }
+                    
+                }
+
+            }
+
+            printf("I'M HERE\n");
+            fflush(stdout);
+
+            memcpy(buffer, &to_old_peer, sizeof(message));
+
+            if (sendto(s_udp_pr, buffer, sizeof(to_old_peer), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
+                perror("Failed UDP connection with peer");
+                break;
+            }
+
          } 
+
          printlist();
        
     }
@@ -340,7 +380,7 @@ node* remove_node(char *address, int port){
         return NULL;
 
 
-    if (strcmp(address, head->address) == 0 && port == head->port){
+    if (strcmp(address, head->address) == 0 && (port == head->port || port == head->port_pr)){
 
 
         if (head->next == NULL){
@@ -374,7 +414,7 @@ node* remove_node(char *address, int port){
     while (cur_node->next != NULL){
 
 
-        if (strcmp(address, cur_node-> next-> address) == 0 && port == cur_node-> next-> port){
+        if (strcmp(address, cur_node-> next-> address) == 0 && (port == cur_node-> next-> port || port == cur_node->next->port_pr)){
 
             node *temp;
 
