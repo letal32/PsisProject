@@ -495,7 +495,6 @@ void * listen_to_peer(){
                     if (status == -1){
                         break;
                     }
-                    printf("I'M HERE\n");
                 }
 
                 if (status == -1){
@@ -577,10 +576,16 @@ void * listen_to_peer(){
                     break;
                 }   
 
-                if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                int status = 0;
+                while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
                     perror("TCP connection failed");
-                    break;
+                    status = get_new_peer_address(&peer_addr);
+                    if (status == -1)
+                        break;
                 }
+
+                if (status == -1)
+                    continue;
 
                 memcpy(buffer, &command, sizeof(cmd_add));
 
@@ -612,10 +617,17 @@ void * listen_to_peer(){
                     break;
                 }   
 
-                if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                int status = 0;
+                while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
                     perror("TCP connection failed");
-                    break;
+                    status = get_new_peer_address(&peer_addr);
+                    if (status == -1)
+                        break;
+                    
                 }
+
+                if (status == -1)
+                    continue;
 
                 memcpy(buffer, &command, sizeof(cmd_add));
 
@@ -848,10 +860,18 @@ void * serve_client (void * sock){
                             break;
                         }   
 
-                        if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                        int status = 0;
+                        while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
                             perror("TCP connection failed");
-                            break;
+                            status = get_new_peer_address(&peer_addr);
+                            if (status == -1){
+                                break;
+                            }
+                            
                         }
+
+                        if (status == -1)
+                            continue;
 
                         cmd_add upload;
                         upload.code = 22;
@@ -915,10 +935,17 @@ void * serve_client (void * sock){
                             break;
                         }   
 
-                        if (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
+                        int stat = 0;
+                        while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
                             perror("TCP connection failed");
-                            break;
+                            stat = get_new_peer_address(&peer_addr);
+                            
+                            if (stat == -1)
+                                break;
                         }
+
+                        if (stat == -1)
+                            continue;
 
                         cmd_add upload;
                         upload.code = 23;
