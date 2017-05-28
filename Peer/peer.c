@@ -30,6 +30,7 @@ int tcp_port_pr;
 int udp_port_gw;
 
 int peer_id = -1;
+int counter = 0;
 
 
 char *gw_ip;
@@ -693,7 +694,8 @@ void * serve_client (void * sock){
                 node *new_image = malloc(sizeof(node));
                 strncpy(new_image->name, cmd.name,100);
                 strncpy(new_image->keywords, "\0", 100);
-                uint32_t pic_id = clock() * getpid();
+                uint32_t pic_id = 100000*peer_id + counter;
+                counter++;
                 new_image->identifier = pic_id;
 
                 insert(new_image);
