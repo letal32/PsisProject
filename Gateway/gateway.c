@@ -71,45 +71,140 @@ void * fromclient (void * arg){
          memcpy(&mess, buffer, sizeof(mess));
          
          /* Send address of next server to client*/
-         
-         message assigned_server;
-         if (num_servers == 0){
-             assigned_server.type = 0;
-             char *buffer = serialize_msg(assigned_server);
-                
-             if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
-                  perror("Failed UDP connection with client");
-                  exit(1);
-              }
-              
-          } else {
-            
-             pthread_rwlock_rdlock(&rwlock);
-             node server;
-             if (cur_server_index < num_servers){
-                server = get_server(head, cur_server_index);
-                cur_server_index++;
-             } else {
-                server = *head;
-                cur_server_index = 0;
-             }
-
-             cur_server_index = mod(cur_server_index + 1, num_servers);
-             assigned_server.type = 1;
-             strncpy(assigned_server.address, server.address,20);
-             assigned_server.port = server.port;
-
-             pthread_rwlock_unlock(&rwlock);
-
-             char *buffer = serialize_msg(assigned_server);
-                
-             if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
+         if (mess.type == 0){
+           message assigned_server;
+           if (num_servers == 0){
+               assigned_server.type = 0;
+               char *buffer = serialize_msg(assigned_server);
+                  
+               if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
                     perror("Failed UDP connection with client");
                     exit(1);
-             }
-          }
+                }
+                
+            } else {
+              
+               pthread_rwlock_rdlock(&rwlock);
+               node server;
+               if (cur_server_index < num_servers){
+                  server = get_server(head, cur_server_index);
+                  cur_server_index++;
+               } else {
+                  server = *head;
+                  cur_server_index = 0;
+               }
+
+               cur_server_index = mod(cur_server_index + 1, num_servers);
+               assigned_server.type = 1;
+               strncpy(assigned_server.address, server.address,20);
+               assigned_server.port = server.port;
+
+               pthread_rwlock_unlock(&rwlock);
+
+               char *buffer = serialize_msg(assigned_server);
+                  
+               if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
+                      perror("Failed UDP connection with client");
+                      exit(1);
+               }
+            }
+
+        } else if (mess.type == 1){
+
+            //Remove the server and inform the old peer of the new UP address, if any
+            node *down = remove_node(mess.address, mess.port);
+            printf("NUM SERVERS: %d\n", num_servers);
+
+            if (down == NULL){
+              printf("ERROR NULL\n");
+            }
+
+            message to_old_peer;
+            if (num_servers >= 1){
+                to_old_peer.type = 3;
+                to_old_peer.subtype = 0;
+                if (num_servers == 1){
+                    to_old_peer.port_pr = -1;
+                } else{
+                    if (down->next != NULL){
+                      to_old_peer.port_pr = down->next->port_pr;
+                      strncpy(to_old_peer.up, down->next->address, 20);
+                    } else {
+                      to_old_peer.port_pr = head->port_pr;
+                      strncpy(to_old_peer.up, head->address, 20);
+                    }
+                    
+                }
+
+            }
+
+            struct sockaddr_in old_peer_addr;
+            old_peer_addr.sin_family = AF_INET;
+            old_peer_addr.sin_port = htons(down->port_gw);
+        
+            if (!inet_aton(down->address, &old_peer_addr.sin_addr)){
+                perror("Old peer IP not valid");
+                exit(1);
+            }
+
+            memcpy(buffer, &to_old_peer, sizeof(message));
+
+            printf("GIVING TO OLD PEER A NEW ADDRESS\n");
+
+            if (sendto(s_udp_cl, buffer, sizeof(to_old_peer), 0, (struct sockaddr*)&old_peer_addr, sizeof(old_peer_addr)) < 0){
+                perror("Failed UDP connection with peer");
+                exit(1);
+            }
+
+            printf("PEER GOT NEW ADDRESS\n");
+
+            //Give a new address to the client
+             message assigned_server;
+             if (num_servers == 0){
+                 assigned_server.type = 0;
+                 char *buffer = serialize_msg(assigned_server);
+
+                 printf("NO SERVERS AVAILABLE... SENDING RESPONSE\n");
+                    
+                 if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
+                      perror("Failed UDP connection with client");
+                      exit(1);
+                  }
+                  
+              } else {
+                
+                 pthread_rwlock_rdlock(&rwlock);
+                 node server;
+                 if (cur_server_index < num_servers){
+                    server = get_server(head, cur_server_index);
+                    cur_server_index++;
+                 } else {
+                    server = *head;
+                    cur_server_index = 0;
+                 }
+
+                 cur_server_index = mod(cur_server_index + 1, num_servers);
+                 assigned_server.type = 1;
+                 strncpy(assigned_server.address, server.address,20);
+                 assigned_server.port = server.port;
+
+                 pthread_rwlock_unlock(&rwlock);
+
+                 char *buffer = serialize_msg(assigned_server);
+
+                 printf("SERVER AVAILABLE SENDING TO CLIENT... (%s, %d)\n", assigned_server.address, assigned_server.port );
+                    
+                 if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
+                        perror("Failed UDP connection with client");
+                        exit(1);
+                 }
+
+
+
+        }
             
      }
+   }
 }
 
 void * frompeers (void * arg){
@@ -201,8 +296,8 @@ void * frompeers (void * arg){
 
             /* Remove the address from the linked list*/
             pthread_rwlock_wrlock(&rwlock);
-            //printf("MESS PORT: %d\n", mess.port);
             node* node_down = remove_node(inet_ntoa(recv_addr.sin_addr), mess.port);
+            printf("NUM SERVERS: %d\n", num_servers);
 
             message to_old_peer;
             char old_peer[20];
@@ -226,7 +321,6 @@ void * frompeers (void * arg){
                 strncpy(old_peer, node_down->address, 20);
                 old_peer_port = node_down->port_gw;
 
-                //printf("OLD PEER PORT %d\n", old_peer_port);
             }
 
             pthread_rwlock_unlock(&rwlock);
@@ -254,12 +348,7 @@ void * frompeers (void * arg){
          } else if (mess.type == 3){
 
             node *down = remove_node(mess.up, mess.port_pr);
-
-            if (down == NULL){
-              printf("NULL VALUE\n");
-              fflush(stdout);
-            }
-
+            printf("NUM SERVERS: %d\n", num_servers);
 
             message to_old_peer;
             if (num_servers >= 1){
@@ -279,9 +368,6 @@ void * frompeers (void * arg){
                 }
 
             }
-
-            printf("I'M HERE\n");
-            fflush(stdout);
 
             memcpy(buffer, &to_old_peer, sizeof(message));
 

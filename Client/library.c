@@ -13,6 +13,62 @@
 #include <arpa/inet.h>
 
 
+int get_new_peer_address(struct sockaddr_in* peer_addr, char* host, in_port_t gw_port){
+    message new_addr;
+    new_addr.type = 1;
+    strncpy(new_addr.address, inet_ntoa((*peer_addr).sin_addr), 20);
+    new_addr.port = ntohs((*peer_addr).sin_port);
+
+    char buffer[sizeof(message)];
+    memcpy(buffer, &new_addr, sizeof(message));
+
+    struct sockaddr_in gw_addr;
+    gw_addr.sin_family = AF_INET;
+    gw_addr.sin_port = htons(gw_port);
+        
+    if (!inet_aton(host, &gw_addr.sin_addr)){
+        perror("Gateway IP not valid");
+        exit(1);
+    }
+
+    int udp_tmp = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (sendto(udp_tmp, buffer, sizeof(message), 0, (struct sockaddr*)&gw_addr, sizeof(gw_addr)) < 0){
+        perror("Failed UDP connection with gateway");
+        exit(1);
+    }
+
+    printf("SENT REQUEST FOR NEW ADDRESS WITH OLD ADDRESS: (%s, %d) \n", new_addr.address, new_addr.port);
+
+    if (recvfrom(udp_tmp, buffer, sizeof(message), 0, NULL, NULL) < 0){
+        perror("Address UP reception failed");
+        exit(1);
+    }    
+
+
+
+    message response;
+    memcpy(&response, buffer, sizeof(message));
+
+    printf("RECEIVED NEW ADDRESS : (%s, %d)\n", response.address, response.port );
+
+    if (response.type == 0){
+        return -1;
+    }
+
+    (*peer_addr).sin_family = AF_INET;
+    (*peer_addr).sin_port = htons(response.port);
+                            
+    if (!inet_aton(response.address, &((*peer_addr).sin_addr))){
+        perror("UP peer IP not valid");
+        exit(1);
+    }
+
+    close(udp_tmp);
+
+    return 0;
+}
+
 char *serialize_msg(message m){
 
     char *buffer;
@@ -81,9 +137,9 @@ int gallery_connect(char * host, in_port_t port){
     	return 0;
     }
 
-    printf("%s\n", gw_mess.address);
-
     free(buffer_rcv);
+
+    printf("RECEIVED ADDRESS OF PEER\n");
 
     /* Establish a connection with the peer */
 
@@ -97,17 +153,20 @@ int gallery_connect(char * host, in_port_t port){
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(gw_mess.port);
-
-    printf("%s\n", gw_mess.address);
         
     if (!inet_aton(gw_mess.address, &server_addr.sin_addr)){
         perror("Gateway IP 2 not valid");
         return -1;
     }
     
-    if (connect(s_tcp_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
-        perror("TCP connection failed");
-        return -1;
+    while (connect(s_tcp_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0){
+        perror("TCP connection failed with peer. Getting new address");
+        int status = get_new_peer_address(&server_addr, host, port);
+
+        if (status == -1){
+            return 0;
+        }
+        
     }
 
     return s_tcp_fd;

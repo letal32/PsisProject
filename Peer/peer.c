@@ -364,7 +364,7 @@ void * listen_to_peer(){
             fflush(stdout);
 
             int num_pictures = command.size;
-            //printf("NUM PIC: %d\n", num_pictures );
+            printf("NUM PIC: %d\n", num_pictures );
             fflush(stdout);
 
             for (int i = 0; i < num_pictures; i++){
@@ -421,7 +421,7 @@ void * listen_to_peer(){
         } else if (command.code == 21) {
 
             if (command.source == peer_id){
-
+                printf("I DONT WANT THIS PICTURE, I ALREADY HAVE\n");
                 cmd_add response;
                 response.type = 2;
 
@@ -746,12 +746,14 @@ void * serve_client (void * sock){
                         }   
 
                         int status = 0;
+                        printf("CONNECTING WITH UP PEER\n");
                         while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0) {
                             perror("TCP connection failed, retrieving new peer address");
                             status = get_new_peer_address(&peer_addr);
                             if (status == -1)
                                 break;
                         }
+                        printf("CONNECTED WITH UP PEER\n");
 
                         if (status == -1)
                             continue;
@@ -789,7 +791,7 @@ void * serve_client (void * sock){
                         }
 
                         memcpy(&upload, buffer, sizeof(cmd_add));
-
+                        printf("I RECEIVED AN UPLOAD TYPE %d\n",upload.type );
                         if (upload.type == 1){
 
                             /* Send image */
