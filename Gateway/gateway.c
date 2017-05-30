@@ -94,7 +94,7 @@ void * fromclient (void * arg){
                   cur_server_index = 0;
                }
 
-               cur_server_index = mod(cur_server_index + 1, num_servers);
+               //cur_server_index = mod(cur_server_index + 1, num_servers);
                assigned_server.type = 1;
                strncpy(assigned_server.address, server.address,20);
                assigned_server.port = server.port;
@@ -115,9 +115,9 @@ void * fromclient (void * arg){
             node *down = remove_node(mess.address, mess.port);
             printf("NUM SERVERS: %d\n", num_servers);
 
-            if (down == NULL){
+            if (down != NULL){
               printf("ERROR NULL\n");
-            }
+            
 
             message to_old_peer;
             if (num_servers >= 1){
@@ -157,6 +157,7 @@ void * fromclient (void * arg){
             }
 
             printf("PEER GOT NEW ADDRESS\n");
+          }
 
             //Give a new address to the client
              message assigned_server;
@@ -276,13 +277,53 @@ void * frompeers (void * arg){
             if (num_servers > 1){
 
                     struct sockaddr_in old_peer_addr;
-                    old_peer_addr.sin_family = AF_INET;
-                    old_peer_addr.sin_port = htons(old_peer_port);
-        
-                    if (!inet_aton(old_peer, &old_peer_addr.sin_addr)){
-                        perror("Old peer IP not valid");
+                    int status = 0;
+                    int tmp_udp = socket(AF_INET, SOCK_DGRAM, 0);
+                    while (1){
+                      old_peer_addr.sin_family = AF_INET;
+                      old_peer_addr.sin_port = htons(old_peer_port);
+
+          
+                      if (!inet_aton(old_peer, &old_peer_addr.sin_addr)){
+                          perror("Old peer IP not valid");
+                          exit(1);
+                      }
+
+
+
+                      message ping;
+                      ping.type = 4;
+                      memcpy(buffer, &ping, sizeof(ping));
+                      if (sendto(tmp_udp, buffer, sizeof(ping), 0, (struct sockaddr*)&old_peer_addr, sizeof(old_peer_addr)) < 0){
+                        perror("Failed UDP connection with peer");
                         exit(1);
+                      }
+
+                      struct timeval tv;
+                      tv.tv_sec = 2;
+                      if (setsockopt(tmp_udp, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
+                          perror("Error");
+                      }
+
+                      if (recvfrom(tmp_udp, buffer, sizeof(ping), 0, NULL, NULL) < 0){
+                        perror("Ping problem!");
+                        node* down = remove_node(old_peer, old_peer_port);
+                        if (num_servers == 1){
+                          status = 1;
+                          break;
+                        } else {
+                          strncpy(old_peer, down->address, 20);
+                          old_peer_port = down->port_gw;
+                        }
+                      } else {
+                        break;
+                      }
+
                     }
+                    close(tmp_udp);
+
+                    if (status == 1)
+                      continue;
 
                     memcpy(buffer, &to_old_peer, sizeof(to_old_peer));
                     if (sendto(s_udp_pr, buffer, sizeof(to_old_peer), 0, (struct sockaddr*)&old_peer_addr, sizeof(old_peer_addr)) < 0){
@@ -466,7 +507,7 @@ node* remove_node(char *address, int port){
         return NULL;
 
 
-    if (strcmp(address, head->address) == 0 && (port == head->port || port == head->port_pr)){
+    if (strcmp(address, head->address) == 0 && (port == head->port || port == head->port_pr || port == head->port_gw)){
 
 
         if (head->next == NULL){
@@ -500,7 +541,7 @@ node* remove_node(char *address, int port){
     while (cur_node->next != NULL){
 
 
-        if (strcmp(address, cur_node-> next-> address) == 0 && (port == cur_node-> next-> port || port == cur_node->next->port_pr)){
+        if (strcmp(address, cur_node-> next-> address) == 0 && (port == cur_node-> next-> port || port == cur_node->next->port_pr || port == cur_node->next->port_gw)){
 
             node *temp;
 

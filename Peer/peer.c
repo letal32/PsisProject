@@ -182,13 +182,25 @@ void * listen_to_gw(){
     }
 
     while(1){
+         struct sockaddr recv_addr;
+         socklen_t recv_size = sizeof(recv_addr);
 
-        if (recvfrom(s_udp_fd, buffer, sizeof(m), 0, NULL, NULL) < 0){
+        if (recvfrom(s_udp_fd, buffer, sizeof(m), 0, &recv_addr, &recv_size) < 0){
             perror("Address UP reception failed");
             exit(1);
         }
 
         memcpy(&m, buffer, sizeof(m));
+        if (m.type == 4){
+
+            if (sendto(s_udp_fd, buffer, sizeof(m), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
+                perror("Failed UDP connection with gateway");
+                exit(1);
+            }
+
+            continue;
+        }
+
         strncpy(peer_up, m.up, 20);
         port_peer_up = m.port_pr;
 
