@@ -24,6 +24,7 @@ int s_tcp_fd; //TCP socket for accepting client requests
 int s_udp_fd; //UDP socket for communicating with the gateway
 int s_tcp_peer_fd; //TCP socket for accepting connections from other peers
 
+pthread_rwlock_t rwlock;
 
 int tcp_port;
 int tcp_port_pr;
@@ -35,8 +36,11 @@ int counter = 1;
 
 char *gw_ip;
 int gw_port;
+
 node *head = NULL;
+
 int num_nodes = 0;
+
 
 char peer_up[20];
 int port_peer_up = -1;
@@ -262,7 +266,13 @@ void * upload_pic(){
 
     //TODO: Sync!!!!
 
+    if(pthread_rwlock_rdlock(&rwlock) != 0){
+        printf("Read LOCK not acquired\n");
+        pthread_exit(NULL);
+    }
+
     node* cur_node = head;
+
     for (int i = 0; i < num_nodes; i++){
 
         cmd_add pic_info;
@@ -322,6 +332,11 @@ void * upload_pic(){
             break;
         }
 
+    }
+
+    if(pthread_rwlock_unlock(&rwlock) != 0){
+        printf("Read LOCK not unlocked\n");
+        pthread_exit(NULL);
     }
 
     close(tcp_tmp);
@@ -418,9 +433,20 @@ void * listen_to_peer(){
             
                 fclose(image);
 
-                //printf("INSERTING PICTURE\n");
+        
+                if(pthread_rwlock_wrlock(&rwlock) != 0){
+                    printf("Write LOCK not acquired\n");
+                    continue;
+                }
+
                 insert(picture);
-                //printf("END INSERTING PICTURE\n");
+                
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Write LOCK not unlocked\n");
+                    continue;
+                }
+
                 printlist();
 
                 cmd_add response;
@@ -490,8 +516,20 @@ void * listen_to_peer(){
             
                 fclose(image);
 
+                if(pthread_rwlock_wrlock(&rwlock) != 0){
+                    printf("Write LOCK not acquired\n");
+                    continue;
+                }
+
                 insert(picture);
                 printlist();
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Write LOCK not unlocked\n");
+                    continue;
+                }
+
+                
 
                 //Replicate the picture to the peer down
                 struct sockaddr_in peer_addr;
@@ -580,9 +618,21 @@ void * listen_to_peer(){
         } else if (command.code == 22){
 
             if (command.source != peer_id){
+
+                if(pthread_rwlock_wrlock(&rwlock) != 0){
+                    printf("Write LOCK not acquired\n");
+                    continue;
+                }  
+                             
                 node * photo_info = search_by_id(command.id);
                 strncpy(photo_info->keywords + strlen(photo_info->keywords), command.keyword, MAX_KEYWORD_TOT_LEN);
+
                 printlist();
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Write LOCK not unlocked\n");
+                    continue;
+                }
 
                 struct sockaddr_in peer_addr;
                 peer_addr.sin_family = AF_INET;
@@ -622,8 +672,19 @@ void * listen_to_peer(){
         } else if (command.code == 23) {
 
             if (command.source != peer_id){
+
+                if(pthread_rwlock_wrlock(&rwlock) != 0){
+                    printf("Write LOCK not acquired\n");
+                    continue;
+                }
+
                 remove_node(command.id);
                 printlist();
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Write LOCK not unlocked\n");
+                    continue;
+                }
 
                 struct sockaddr_in peer_addr;
                 peer_addr.sin_family = AF_INET;
@@ -740,8 +801,18 @@ void * serve_client (void * sock){
                 
                 new_image->identifier = pic_id;
 
+                if(pthread_rwlock_wrlock(&rwlock) != 0){
+                    printf("Write LOCK not acquired\n");
+                    continue;
+                }
+
                 insert(new_image);
                 printlist();
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Write LOCK not unlocked\n");
+                    continue;
+                }
 
                 cmd_add resp;
 
@@ -845,7 +916,17 @@ void * serve_client (void * sock){
 
             } else if (cmd.code == 11){
 
-                node * photo_info = search_by_id(cmd.id);
+                if(pthread_rwlock_rdlock(&rwlock) != 0){
+                    printf("Read LOCK not acquired\n");
+                    continue;
+                }
+
+                node *photo_info = search_by_id(cmd.id);
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Read LOCK not unlocked\n");
+                    continue;
+                }
 
                 if (photo_info == NULL){
                     cmd_add resp;
@@ -860,8 +941,19 @@ void * serve_client (void * sock){
 
                 } else {
 
+                    //PROBLEM!!!
+                    if(pthread_rwlock_wrlock(&rwlock) != 0){
+                        printf("Write LOCK not acquired\n");
+                        continue;
+                    }
+
                     strncpy(photo_info->keywords + strlen(photo_info->keywords), cmd.keyword, MAX_KEYWORD_LEN);
                     printlist();
+
+                    if(pthread_rwlock_unlock(&rwlock) != 0){
+                        printf("Read LOCK not unlocked\n");
+                        continue;
+                    }
 
                     cmd_add resp;
                     resp.type = 1;
@@ -910,7 +1002,7 @@ void * serve_client (void * sock){
                         strncpy(upload.keyword, cmd.keyword, MAX_KEYWORD_TOT_LEN);
                         upload.id = cmd.id;
 
-                        printf("Upload keyword: %d, %d, %s, %d\n", upload.code, upload.source, upload.keyword, upload.id);
+                        //printf("Upload keyword: %d, %d, %s, %d\n", upload.code, upload.source, upload.keyword, upload.id);
                         fflush(stdout);
 
                         memcpy(response, &upload, sizeof(cmd_add));
@@ -925,8 +1017,18 @@ void * serve_client (void * sock){
 
             } else if (cmd.code == 12) {
 
+                if(pthread_rwlock_wrlock(&rwlock) != 0){
+                    printf("Write LOCK not acquired\n");
+                    continue;
+                }
+
                 int status = remove_node(cmd.id);
                 printlist();
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Write LOCK not unlocked\n");
+                    continue;
+                }
 
                 if (status == 0){
                     cmd_add resp;
@@ -995,7 +1097,21 @@ void * serve_client (void * sock){
 
             } else if (cmd.code == 15){
 
+                if(pthread_rwlock_rdlock(&rwlock) != 0){
+                    printf("Read LOCK not acquired\n");
+                    continue;
+                }
+
                 node * photo_info = search_by_id(cmd.id);
+                uint32_t id_tmp;
+
+                if (photo_info != NULL)
+                    id_tmp = photo_info->identifier;
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Read LOCK not unlocked\n");
+                    continue;
+                }
 
                 if (photo_info == NULL){
                     cmd_add resp;
@@ -1009,7 +1125,7 @@ void * serve_client (void * sock){
 
                     FILE *picture;
                     char pic_name[MAX_NAME_LEN];
-                    snprintf(pic_name, MAX_NAME_LEN, "%u", photo_info->identifier);
+                    snprintf(pic_name, MAX_NAME_LEN, "%u", id_tmp);
 
                     picture = fopen(pic_name, "r");
                     if (picture == NULL){
@@ -1054,6 +1170,11 @@ void * serve_client (void * sock){
 
             } else if (cmd.code == 13){
 
+                if(pthread_rwlock_rdlock(&rwlock) != 0){
+                    printf("Read LOCK not acquired\n");
+                    continue;
+                }
+
                 node* cur_node = head;
                 int num_keywords = 0;
                 int size = 100;
@@ -1082,6 +1203,11 @@ void * serve_client (void * sock){
                     }
 
                     cur_node = cur_node->next;
+                }
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Read LOCK not unlocked\n");
+                    continue;
                 }
 
 
@@ -1134,7 +1260,22 @@ void * serve_client (void * sock){
 
             } else if (cmd.code == 14){
 
+                if(pthread_rwlock_rdlock(&rwlock) != 0){
+                    printf("Read LOCK not acquired\n");
+                    continue;
+                }
+
                 node * photo_info = search_by_id(cmd.id);
+
+                char tmp[MAX_NAME_LEN];
+                if (photo_info != NULL)
+                    strncpy(tmp, photo_info->name, MAX_NAME_LEN);
+
+
+                if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Read LOCK not unlocked\n");
+                    continue;
+                }
 
                 if (photo_info == NULL){
                     cmd_add resp;
@@ -1149,7 +1290,7 @@ void * serve_client (void * sock){
 
                     cmd_add resp;
                     resp.type = 1;
-                    strncpy(resp.name, photo_info->name, MAX_NAME_LEN);
+                    strncpy(resp.name, tmp, MAX_NAME_LEN);
 
                     char * response = serialize_cmd(resp);
                     if (send(*new_tcp_fd, response, sizeof(cmd_add), 0) < 0){
@@ -1415,6 +1556,11 @@ int main(int argc, char *argv[]){
     pthread_t threads[MAXCONN];
     int sockets[MAXCONN];
     memset(&sockets, -1, MAXCONN*sizeof(int));
+
+    if(pthread_rwlock_init(&rwlock, NULL) != 0){
+        perror("rwlock initialization failed");
+        exit(-1);
+    }
     
     while(1){
 

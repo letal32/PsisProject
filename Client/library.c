@@ -38,7 +38,7 @@ int get_new_peer_address(struct sockaddr_in* peer_addr, char* host, in_port_t gw
         exit(1);
     }
 
-    printf("SENT REQUEST FOR NEW ADDRESS WITH OLD ADDRESS: (%s, %d) \n", new_addr.address, new_addr.port);
+    printf("\nSENT REQUEST FOR NEW ADDRESS WITH OLD ADDRESS: (%s, %d) \n", new_addr.address, new_addr.port);
 
     if (recvfrom(udp_tmp, buffer, sizeof(message), 0, NULL, NULL) < 0){
         perror("Address UP reception failed");
@@ -50,7 +50,7 @@ int get_new_peer_address(struct sockaddr_in* peer_addr, char* host, in_port_t gw
     message response;
     memcpy(&response, buffer, sizeof(message));
 
-    printf("RECEIVED NEW ADDRESS : (%s, %d)\n", response.address, response.port );
+    printf("\nRECEIVED NEW ADDRESS : (%s, %d)\n", response.address, response.port );
 
     if (response.type == 0){
         return -1;
@@ -139,7 +139,7 @@ int gallery_connect(char * host, in_port_t port){
 
     free(buffer_rcv);
 
-    printf("RECEIVED ADDRESS OF PEER\n");
+    printf("\nRECEIVED ADDRESS OF PEER\n");
 
     /* Establish a connection with the peer */
 
@@ -348,7 +348,7 @@ int gallery_get_photo(int peer_socket, uint32_t id_photo, char *file_name){
         nbytes = recv(peer_socket, p_array, photo_size,0);
         cur_index = cur_index + nbytes;
         fwrite(p_array, 1, nbytes, image);
-        printf("%d\n", nbytes);
+        //printf("%d\n", nbytes);
     }
             
     fclose(image);
