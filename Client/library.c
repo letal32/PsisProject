@@ -200,13 +200,13 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     free(buffer);
 
     /* Send image */
-    printf("SIZE OF PICTURE: %d\n", size);
+    //printf("SIZE OF PICTURE: %d\n", size);
     char send_buffer[size];
     while(!feof(picture)) {
         int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
         if (read > 0){
             int sent = send(peer_socket, send_buffer, sizeof(send_buffer),0);
-            printf("SENT: %d\n", sent);
+            //printf("SENT: %d\n", sent);
         }
 
         bzero(send_buffer, sizeof(send_buffer));

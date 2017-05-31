@@ -20,4 +20,15 @@ typedef struct server{
     struct server *next;
 } node;
 
+void * fromclient (void * arg);
+void * frompeers (void * arg);
+static void handler(int signum);
+void gw_udp_setup();
+node* insert(char *address, int port, int port_gw, int port_pr);
+node get_server(node *head, int index);
+char *serialize_msg(message m);
+int mod(int a, int b);
+node* remove_node(char *address, int port);
+void printlist();
+
 

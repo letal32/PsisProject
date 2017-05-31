@@ -30,7 +30,7 @@ int tcp_port_pr;
 int udp_port_gw;
 
 int peer_id = -1;
-int counter = 0;
+int counter = 1;
 
 
 char *gw_ip;
@@ -272,7 +272,10 @@ void * upload_pic(){
 
 
         FILE *picture;
-        picture = fopen(pic_info.name, "r");
+        char pic_name[MAX_NAME_LEN];
+        snprintf(pic_name, MAX_NAME_LEN, "%u", pic_info.id);
+
+        picture = fopen(pic_name, "r");
         if (picture == NULL){
             perror("File not found");
             pthread_exit(NULL);
@@ -399,7 +402,10 @@ void * listen_to_peer(){
                 int nbytes = 0;
                 int cur_index = 0;
                 FILE *image;
-                image = fopen(pic_info.name, "w");
+                char pic_name[MAX_NAME_LEN];
+                snprintf(pic_name, MAX_NAME_LEN, "%u", pic_info.id);
+
+                image = fopen(pic_name, "w");
 
                 while(cur_index < photo_size){
                     nbytes = recv(new_tcp_fd, p_array, photo_size,0);
@@ -517,6 +523,7 @@ void * listen_to_peer(){
                 if (status == -1){
                     continue;
                 }
+
 
                 image = fopen(pic_name, "r");
                 if (image == NULL){

@@ -23,18 +23,7 @@ node *head = NULL;
 int num_servers = 0;
 pthread_rwlock_t rwlock;
 int counter;
-
-void * fromclient (void * arg);
-void * frompeers (void * arg);
-static void handler(int signum);
-void gw_udp_setup();
-node* insert(char *address, int port, int port_gw, int port_pr);
-node get_server(node *head, int index);
-char *serialize_msg(message m);
-int mod(int a, int b);
-node* remove_node(char *address, int port);
-void printlist();
-
+int cur_server_index = 0;
 
 /*
     All peers connections are received on port 5000
@@ -43,8 +32,6 @@ void printlist();
 
 
 void * fromclient (void * arg){
-   
-   int cur_server_index = 0; 
         
    while(1)
    {
@@ -62,7 +49,7 @@ void * fromclient (void * arg){
          
          if (r < 0){
             perror("Receive Error");
-            exit(1);
+            continue;
          }
          
          /* Copy buffer in a struct */
@@ -79,12 +66,17 @@ void * fromclient (void * arg){
                   
                if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
                     perror("Failed UDP connection with client");
-                    exit(1);
+                    continue;
                 }
                 
             } else {
               
-               pthread_rwlock_rdlock(&rwlock);
+               if(pthread_rwlock_rdlock(&rwlock) != 0){
+                  printf("Read LOCK not acquired\n");
+                  continue;
+               }
+                
+
                node server;
                if (cur_server_index < num_servers){
                   server = get_server(head, cur_server_index);
@@ -94,30 +86,43 @@ void * fromclient (void * arg){
                   cur_server_index = 0;
                }
 
-               //cur_server_index = mod(cur_server_index + 1, num_servers);
+               if(pthread_rwlock_unlock(&rwlock) != 0){
+                  printf("Read LOCK not unlocked\n");
+                  continue;
+               }
+
                assigned_server.type = 1;
                strncpy(assigned_server.address, server.address,20);
                assigned_server.port = server.port;
-
-               pthread_rwlock_unlock(&rwlock);
 
                char *buffer = serialize_msg(assigned_server);
                   
                if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
                       perror("Failed UDP connection with client");
-                      exit(1);
+                      continue;
                }
             }
 
         } else if (mess.type == 1){
 
             //Remove the server and inform the old peer of the new UP address, if any
-            node *down = remove_node(mess.address, mess.port);
-            printf("NUM SERVERS: %d\n", num_servers);
 
-            if (down != NULL){
-              printf("ERROR NULL\n");
-            
+            if(pthread_rwlock_wrlock(&rwlock) != 0){
+                  printf("Write LOCK not acquired\n");
+                  continue;
+            }
+
+            node *down = remove_node(mess.address, mess.port);    
+
+            if(pthread_rwlock_unlock(&rwlock) != 0){
+                  printf("Write LOCK not unlocked\n");
+                  continue;
+            }
+
+            if(pthread_rwlock_rdlock(&rwlock) != 0){
+                  printf("Read LOCK not acquired\n");
+                  continue;
+            }
 
             message to_old_peer;
             if (num_servers >= 1){
@@ -147,16 +152,21 @@ void * fromclient (void * arg){
                 exit(1);
             }
 
+            if(pthread_rwlock_unlock(&rwlock) != 0){
+                  printf("Read LOCK not unlocked\n");
+                  continue;
+            }
+
             memcpy(buffer, &to_old_peer, sizeof(message));
 
-            printf("GIVING TO OLD PEER A NEW ADDRESS\n");
+            //printf("GIVING TO OLD PEER A NEW ADDRESS\n");
 
             if (sendto(s_udp_cl, buffer, sizeof(to_old_peer), 0, (struct sockaddr*)&old_peer_addr, sizeof(old_peer_addr)) < 0){
                 perror("Failed UDP connection with peer");
                 exit(1);
             }
 
-            printf("PEER GOT NEW ADDRESS\n");
+            //printf("PEER GOT NEW ADDRESS\n");
           }
 
             //Give a new address to the client
@@ -174,7 +184,11 @@ void * fromclient (void * arg){
                   
               } else {
                 
-                 pthread_rwlock_rdlock(&rwlock);
+                  if(pthread_rwlock_wrlock(&rwlock) != 0){
+                    printf("Read LOCK acquired acquired\n");
+                    continue;
+                  }
+
                  node server;
                  if (cur_server_index < num_servers){
                     server = get_server(head, cur_server_index);
@@ -184,16 +198,19 @@ void * fromclient (void * arg){
                     cur_server_index = 0;
                  }
 
-                 cur_server_index = mod(cur_server_index + 1, num_servers);
+                  if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Read LOCK not unlocked\n");
+                    continue;
+                  }
+
+                 //cur_server_index = mod(cur_server_index + 1, num_servers);
                  assigned_server.type = 1;
                  strncpy(assigned_server.address, server.address,20);
                  assigned_server.port = server.port;
 
-                 pthread_rwlock_unlock(&rwlock);
-
                  char *buffer = serialize_msg(assigned_server);
 
-                 printf("SERVER AVAILABLE SENDING TO CLIENT... (%s, %d)\n", assigned_server.address, assigned_server.port );
+                 //printf("SERVER AVAILABLE SENDING TO CLIENT... (%s, %d)\n", assigned_server.address, assigned_server.port );
                     
                  if (sendto(s_udp_cl, buffer, sizeof(message), 0, (struct sockaddr*)&recv_addr, sizeof(recv_addr)) < 0){
                         perror("Failed UDP connection with client");
@@ -206,7 +223,7 @@ void * fromclient (void * arg){
             
      }
    }
-}
+
 
 void * frompeers (void * arg){
 
@@ -236,15 +253,29 @@ void * frompeers (void * arg){
          if (mess.type == 0){
 
             /* Save the address in linked list*/
-            pthread_rwlock_wrlock(&rwlock);
+            if(pthread_rwlock_wrlock(&rwlock) != 0){
+                  printf("Write LOCK not acquired\n");
+                  continue;
+            }
+
             node* node_down = insert(inet_ntoa(recv_addr.sin_addr), mess.port, mess.port_gw, mess.port_pr);
             num_servers++;
+
+            if(pthread_rwlock_unlock(&rwlock) != 0){
+                  printf("Write LOCK not unlocked\n");
+                  continue;
+            }
 
             message to_new_peer;
             to_new_peer.type = 1;
             to_new_peer.subtype = 0;
             to_new_peer.id = counter++; 
             
+            if(pthread_rwlock_rdlock(&rwlock) != 0){
+                  printf("Read LOCK not acquired\n");
+                  continue;
+            }
+
             if (num_servers > 1){
                 to_new_peer.port_pr = head->port_pr;
                 strncpy(to_new_peer.up, head->address, 20);
@@ -265,7 +296,10 @@ void * frompeers (void * arg){
                 old_peer_port = node_down->port_gw;
             }
 
-            pthread_rwlock_unlock(&rwlock);
+            if(pthread_rwlock_unlock(&rwlock) != 0){
+                  printf("Read LOCK not unlocked\n");
+                  continue;
+            }
 
             memcpy(buffer, &to_new_peer, sizeof(to_new_peer));
 
@@ -306,20 +340,46 @@ void * frompeers (void * arg){
                       }
 
                       if (recvfrom(tmp_udp, buffer, sizeof(ping), 0, NULL, NULL) < 0){
-                        perror("Ping problem!");
+                        perror("Ping problem. Server not anwering. Removing server from the list.");
+
+                        if(pthread_rwlock_wrlock(&rwlock) != 0){
+                            printf("Write LOCK not acquired\n");
+                            continue;
+                        }
+
                         node* down = remove_node(old_peer, old_peer_port);
+
+                        if(pthread_rwlock_unlock(&rwlock) != 0){
+                            printf("Write LOCK not unlocked\n");
+                            continue;
+                        }
+
                         if (num_servers == 1){
                           status = 1;
                           break;
+
                         } else {
+
+                          if(pthread_rwlock_rdlock(&rwlock) != 0){
+                            printf("Read LOCK not acquired\n");
+                            continue;
+                          }
+
                           strncpy(old_peer, down->address, 20);
                           old_peer_port = down->port_gw;
+
+                          if(pthread_rwlock_unlock(&rwlock) != 0){
+                            printf("Read LOCK not unlocked\n");
+                            continue;
+                          }
+
                         }
                       } else {
                         break;
                       }
 
                     }
+
                     close(tmp_udp);
 
                     if (status == 1)
@@ -336,9 +396,24 @@ void * frompeers (void * arg){
          } else if (mess.type == 2){
 
             /* Remove the address from the linked list*/
-            pthread_rwlock_wrlock(&rwlock);
+            if(pthread_rwlock_wrlock(&rwlock) != 0){
+                printf("Write LOCK not acquired\n");
+                continue;
+            }
+
             node* node_down = remove_node(inet_ntoa(recv_addr.sin_addr), mess.port);
-            printf("NUM SERVERS: %d\n", num_servers);
+
+            if(pthread_rwlock_unlock(&rwlock) != 0){
+                printf("Write LOCK not unlocked\n");
+                continue;
+            }
+
+            //printf("NUM SERVERS: %d\n", num_servers);
+
+            if(pthread_rwlock_rdlock(&rwlock) != 0){
+                printf("Read LOCK not acquired\n");
+                continue;
+            }
 
             message to_old_peer;
             char old_peer[20];
@@ -364,7 +439,10 @@ void * frompeers (void * arg){
 
             }
 
-            pthread_rwlock_unlock(&rwlock);
+            if(pthread_rwlock_unlock(&rwlock) != 0){
+                printf("Read LOCK not unlocked\n");
+                continue;
+            }
 
             if (num_servers >= 1){
 
@@ -388,8 +466,25 @@ void * frompeers (void * arg){
 
          } else if (mess.type == 3){
 
+            if(pthread_rwlock_wrlock(&rwlock) != 0){
+                printf("Write LOCK not acquired\n");
+                continue;
+            }
+
             node *down = remove_node(mess.up, mess.port_pr);
-            printf("NUM SERVERS: %d\n", num_servers);
+
+            if(pthread_rwlock_unlock(&rwlock) != 0){
+                printf("Write LOCK not unlocked\n");
+                continue;
+            }
+
+
+            //printf("NUM SERVERS: %d\n", num_servers);
+
+            if(pthread_rwlock_rdlock(&rwlock) != 0){
+                printf("Read LOCK not acquired\n");
+                continue;
+            }
 
             message to_old_peer;
             if (num_servers >= 1){
@@ -408,6 +503,11 @@ void * frompeers (void * arg){
                     
                 }
 
+            }
+
+            if(pthread_rwlock_unlock(&rwlock) != 0){
+                printf("Read LOCK not unlocked\n");
+                continue;
             }
 
             memcpy(buffer, &to_old_peer, sizeof(message));
@@ -644,8 +744,12 @@ int main(){
     /* Create one thread to handle requests from clients and one to handle requests from peers */
     
     pthread_t thr_cl;
-	pthread_t thr_pr;
-    pthread_rwlock_init(&rwlock,NULL);
+	  pthread_t thr_pr;
+
+    if(pthread_rwlock_init(&rwlock,NULL) != 0){
+        perror("rwlock initialization failed");
+        exit(-1);
+    }
 
 	int error;
 	error = pthread_create(&thr_cl, NULL, fromclient, NULL);
