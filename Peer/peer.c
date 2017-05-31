@@ -464,9 +464,14 @@ void * listen_to_peer(){
                 int cur_index = 0;
                 int nbytes = 0;
 
+                char pic_name[MAX_NAME_LEN];
+                snprintf(pic_name, MAX_NAME_LEN, "%u", command.id);
+
                 char p_array[photo_size];
                 FILE *image;
-                image = fopen(command.name, "w");
+                image = fopen(pic_name, "w");
+
+
 
                 while(cur_index < photo_size){
                     nbytes = recv(new_tcp_fd, p_array, photo_size,0);
@@ -513,7 +518,7 @@ void * listen_to_peer(){
                     continue;
                 }
 
-                image = fopen(command.name, "r");
+                image = fopen(pic_name, "r");
                 if (image == NULL){
                         perror("File not found");
                         exit(1);
@@ -703,8 +708,14 @@ void * serve_client (void * sock){
                 char p_array[photo_size];
                 int nbytes = 0;
                 int cur_index = 0;
+                uint32_t pic_id = 100000*peer_id + counter;
+                counter++;
+
                 FILE *image;
-                image = fopen(cmd.name, "w");
+                char pic_name[MAX_NAME_LEN];
+                snprintf(pic_name, MAX_NAME_LEN, "%u", pic_id);
+
+                image = fopen(pic_name, "w");
 
                 while(cur_index < photo_size){
                     nbytes = recv(*new_tcp_fd, p_array, photo_size,0);
@@ -718,8 +729,8 @@ void * serve_client (void * sock){
                 node *new_image = malloc(sizeof(node));
                 strncpy(new_image->name, cmd.name,100);
                 strncpy(new_image->keywords, "\0", 100);
-                uint32_t pic_id = 100000*peer_id + counter;
-                counter++;
+                
+                
                 new_image->identifier = pic_id;
 
                 insert(new_image);
@@ -771,7 +782,7 @@ void * serve_client (void * sock){
                             continue;
 
                         FILE *picture;
-                        picture = fopen(cmd.name, "r");
+                        picture = fopen(pic_name, "r");
                         if (picture == NULL){
                             perror("File not found");
                             exit(1);
@@ -826,8 +837,6 @@ void * serve_client (void * sock){
 
 
             } else if (cmd.code == 11){
-
-                //printf("IM HERE\n");
 
                 node * photo_info = search_by_id(cmd.id);
 
@@ -931,7 +940,7 @@ void * serve_client (void * sock){
 
                     //Replicate the delete
                     if (port_peer_up > 0){
-                        //Add keyword to all other peers
+
 
                         struct sockaddr_in peer_addr;
                         peer_addr.sin_family = AF_INET;
@@ -992,7 +1001,10 @@ void * serve_client (void * sock){
                 } else {
 
                     FILE *picture;
-                    picture = fopen(photo_info->name, "r");
+                    char pic_name[MAX_NAME_LEN];
+                    snprintf(pic_name, MAX_NAME_LEN, "%u", photo_info->identifier);
+
+                    picture = fopen(pic_name, "r");
                     if (picture == NULL){
                         perror("File not found");
                         exit(1);
@@ -1232,7 +1244,9 @@ int remove_node(uint32_t id){
 
     if (head->identifier == id){
 
-        int rem = remove(head->name);
+        char pic_name[MAX_NAME_LEN];
+        snprintf(pic_name, MAX_NAME_LEN, "%u", head->identifier);
+        int rem = remove(pic_name);
         if (rem == 0){
             node *new_head = head->next;
             free(head);
@@ -1250,7 +1264,9 @@ int remove_node(uint32_t id){
 
         if (cur_node->next->identifier == id){
 
-            int rem = remove(cur_node->next->name);
+            char pic_name[MAX_NAME_LEN];
+            snprintf(pic_name, MAX_NAME_LEN, "%u", cur_node->next->identifier);
+            int rem = remove(pic_name);
             if (rem == 0){
                 node *temp = cur_node->next->next;
                 free(cur_node->next);
