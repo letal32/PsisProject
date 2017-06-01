@@ -310,7 +310,7 @@ void * upload_pic(){
             int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
             if (read > 0){
                 int sent = send(tcp_tmp, send_buffer, sizeof(send_buffer),0);
-                printf("SENT: %d\n", sent);
+                //printf("SENT: %d\n", sent);
             }
 
             bzero(send_buffer, sizeof(send_buffer));
@@ -345,9 +345,6 @@ void * upload_pic(){
 }
 
 void * listen_to_peer(){
-
-    printf("IM HERE GW\n");
-    fflush(stdout);
 
     s_tcp_peer_fd = socket(AF_INET, SOCK_STREAM, 0);
     
@@ -394,8 +391,7 @@ void * listen_to_peer(){
             fflush(stdout);
 
             int num_pictures = command.size;
-            printf("NUM PIC: %d\n", num_pictures );
-            fflush(stdout);
+           
 
             for (int i = 0; i < num_pictures; i++){
 
@@ -465,7 +461,6 @@ void * listen_to_peer(){
         } else if (command.code == 21) {
 
             if (command.source == peer_id){
-                printf("I DONT WANT THIS PICTURE, I ALREADY HAVE\n");
                 cmd_add response;
                 response.type = 2;
 

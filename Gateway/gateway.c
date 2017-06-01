@@ -112,7 +112,10 @@ void * fromclient (void * arg){
                   continue;
             }
 
-            node *down = remove_node(mess.address, mess.port);    
+            node *down = remove_node(mess.address, mess.port); 
+            char tmp[20];
+            char tmp_gw = down->port_gw;
+            strncpy(tmp, down->address, 20);   
 
             if(pthread_rwlock_unlock(&rwlock) != 0){
                   printf("Write LOCK not unlocked\n");
@@ -143,30 +146,35 @@ void * fromclient (void * arg){
 
             }
 
-            struct sockaddr_in old_peer_addr;
-            old_peer_addr.sin_family = AF_INET;
-            old_peer_addr.sin_port = htons(down->port_gw);
-        
-            if (!inet_aton(down->address, &old_peer_addr.sin_addr)){
-                perror("Old peer IP not valid");
-                exit(1);
+              if(pthread_rwlock_unlock(&rwlock) != 0){
+                    printf("Read LOCK not unlocked\n");
+                    continue;
+              }
+
+            if (down != NULL){
+
+              struct sockaddr_in old_peer_addr;
+              old_peer_addr.sin_family = AF_INET;
+              old_peer_addr.sin_port = htons(temp_gw);
+          
+              if (!inet_aton(tmp, &old_peer_addr.sin_addr)){
+                  perror("Old peer IP not valid");
+                  exit(1);
+              }
+
+
+
+              memcpy(buffer, &to_old_peer, sizeof(message));
+
+              //printf("GIVING TO OLD PEER A NEW ADDRESS\n");
+
+              if (sendto(s_udp_cl, buffer, sizeof(to_old_peer), 0, (struct sockaddr*)&old_peer_addr, sizeof(old_peer_addr)) < 0){
+                  perror("Failed UDP connection with peer");
+                  exit(1);
+              }
+
+              //printf("PEER GOT NEW ADDRESS\n");
             }
-
-            if(pthread_rwlock_unlock(&rwlock) != 0){
-                  printf("Read LOCK not unlocked\n");
-                  continue;
-            }
-
-            memcpy(buffer, &to_old_peer, sizeof(message));
-
-            //printf("GIVING TO OLD PEER A NEW ADDRESS\n");
-
-            if (sendto(s_udp_cl, buffer, sizeof(to_old_peer), 0, (struct sockaddr*)&old_peer_addr, sizeof(old_peer_addr)) < 0){
-                perror("Failed UDP connection with peer");
-                exit(1);
-            }
-
-            //printf("PEER GOT NEW ADDRESS\n");
           }
 
             //Give a new address to the client
