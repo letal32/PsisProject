@@ -114,8 +114,11 @@ void * fromclient (void * arg){
 
             node *down = remove_node(mess.address, mess.port); 
             char tmp[20];
-            char tmp_gw = down->port_gw;
-            strncpy(tmp, down->address, 20);   
+            int tmp_gw;
+            if (down != NULL){
+              tmp_gw = down->port_gw;
+              strncpy(tmp, down->address, 20);
+            }   
 
             if(pthread_rwlock_unlock(&rwlock) != 0){
                   printf("Write LOCK not unlocked\n");
@@ -155,7 +158,7 @@ void * fromclient (void * arg){
 
               struct sockaddr_in old_peer_addr;
               old_peer_addr.sin_family = AF_INET;
-              old_peer_addr.sin_port = htons(temp_gw);
+              old_peer_addr.sin_port = htons(tmp_gw);
           
               if (!inet_aton(tmp, &old_peer_addr.sin_addr)){
                   perror("Old peer IP not valid");
@@ -198,7 +201,7 @@ void * fromclient (void * arg){
                   }
 
                  node server;
-                 if (cur_server_index <= num_servers){
+                 if (cur_server_index < num_servers){
                     server = get_server(head, cur_server_index);
                     cur_server_index++;
                  } else {

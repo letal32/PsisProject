@@ -305,7 +305,7 @@ void * upload_pic(){
         }
 
         /* Send image */
-        char send_buffer[size];
+        char* send_buffer = malloc(size);
         while(!feof(picture)) {
             int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
             if (read > 0){
@@ -317,6 +317,7 @@ void * upload_pic(){
         }
 
         fclose(picture);
+        free(send_buffer);
 
         if (cur_node->next != NULL)
             cur_node = cur_node->next;
@@ -388,7 +389,7 @@ void * listen_to_peer(){
         //Download all pictures from above peer
         if (command.code == 20){
             //printf("I'M HERE PLEASE\n");
-            fflush(stdout);
+            //fflush(stdout);
 
             int num_pictures = command.size;
            
@@ -409,7 +410,7 @@ void * listen_to_peer(){
 
                 int photo_size = pic_info.size;
                 //printf("PIC SIZE: %d\n", photo_size);
-                char p_array[photo_size];
+                char* p_array = malloc(photo_size);
                 int nbytes = 0;
                 int cur_index = 0;
                 FILE *image;
@@ -426,6 +427,8 @@ void * listen_to_peer(){
                     //printf("%d\n", cur_index );
                     //fflush(stdout);
                 }
+
+                free(p_array);
             
                 fclose(image);
 
@@ -494,7 +497,7 @@ void * listen_to_peer(){
                 char pic_name[MAX_NAME_LEN];
                 snprintf(pic_name, MAX_NAME_LEN, "%u", command.id);
 
-                char p_array[photo_size];
+                char* p_array = malloc(photo_size);
                 FILE *image;
                 image = fopen(pic_name, "w");
 
@@ -508,6 +511,8 @@ void * listen_to_peer(){
                     //printf("%d\n", cur_index );
                     //fflush(stdout);
                 }
+
+                free(p_array);
             
                 fclose(image);
 
@@ -593,18 +598,19 @@ void * listen_to_peer(){
                 if (upload.type == 1){
 
                     /* Send image */
-                    char send_buffer[photo_size];
+                    char* send_buffer = malloc(photo_size);
                     while(!feof(image)) {
                         int read = fread(send_buffer, 1, sizeof(send_buffer), image);
                         if (read > 0){
                             int sent = send(tcp_tmp, send_buffer, sizeof(send_buffer),0);
-                            printf("SENT: %d\n", sent);
+                            //printf("SENT: %d\n", sent);
                         }
 
                         bzero(send_buffer, sizeof(send_buffer));
                     }
 
                     fclose(image);
+                    free(send_buffer);
 
                 }                      
 
@@ -768,7 +774,7 @@ void * serve_client (void * sock){
                 int photo_size = cmd.size;
                 char * photo_name = cmd.name;
 
-                char p_array[photo_size];
+                char* p_array = malloc(photo_size);
                 int nbytes = 0;
                 int cur_index = 0;
                 uint32_t pic_id = 100000*peer_id + counter;
@@ -788,6 +794,7 @@ void * serve_client (void * sock){
                 }
             
                 fclose(image);
+                free(p_array);
 
                 node *new_image = malloc(sizeof(node));
                 strncpy(new_image->name, cmd.name,100);
@@ -891,18 +898,19 @@ void * serve_client (void * sock){
                         if (upload.type == 1){
 
                             /* Send image */
-                            char send_buffer[photo_size];
+                            char* send_buffer = malloc(photo_size);
                             while(!feof(picture)) {
                                 int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
                                 if (read > 0){
                                     int sent = send(tcp_tmp, send_buffer, sizeof(send_buffer),0);
-                                    printf("SENT: %d\n", sent);
+                                    //printf("SENT: %d\n", sent);
                                 }
 
                                 bzero(send_buffer, sizeof(send_buffer));
                             }
 
                             fclose(picture);
+                            free(send_buffer);
                         }                      
 
                 }
@@ -1147,18 +1155,19 @@ void * serve_client (void * sock){
                     }
 
                     /* Send image */
-                    char send_buffer[size];
+                    char* send_buffer = malloc(size);
                     while(!feof(picture)) {
                         int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
                         if (read > 0){
                             int sent = send(*new_tcp_fd, send_buffer, sizeof(send_buffer),0);
-                            printf("SENT: %d\n", sent);
+                            //printf("SENT: %d\n", sent);
                         }
 
                         bzero(send_buffer, sizeof(send_buffer));
                     }
 
                     fclose(picture);
+                    free(send_buffer);
 
 
                 }

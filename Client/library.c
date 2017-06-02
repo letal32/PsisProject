@@ -201,7 +201,7 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
 
     /* Send image */
     //printf("SIZE OF PICTURE: %d\n", size);
-    char send_buffer[size];
+    char* send_buffer = malloc(size);
     while(!feof(picture)) {
         int read = fread(send_buffer, 1, sizeof(send_buffer), picture);
         if (read > 0){
@@ -213,6 +213,7 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     }
 
     fclose(picture);
+    free(send_buffer);
 
     /* Receive identifier */
     char * recv_id = malloc(sizeof(cmd_add));
@@ -338,7 +339,7 @@ int gallery_get_photo(int peer_socket, uint32_t id_photo, char *file_name){
 
     int photo_size = response.size;
 
-    char p_array[photo_size];
+    char* p_array = malloc(photo_size);
     int nbytes = 1;
     int cur_index = 0;
     FILE *image;
@@ -352,6 +353,7 @@ int gallery_get_photo(int peer_socket, uint32_t id_photo, char *file_name){
     }
             
     fclose(image);
+    free(p_array);
 
     return 1;
 
