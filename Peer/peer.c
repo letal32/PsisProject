@@ -422,9 +422,9 @@ void * listen_to_peer(){
                     nbytes = recv(new_tcp_fd, p_array, photo_size,0);
                     cur_index = cur_index + nbytes;
                     fwrite(p_array, 1, nbytes, image);
-                    printf("%d\n", nbytes);
-                    printf("%d\n", cur_index );
-                    fflush(stdout);
+                    //printf("%d\n", nbytes);
+                    //printf("%d\n", cur_index );
+                    //fflush(stdout);
                 }
             
                 fclose(image);
@@ -436,14 +436,14 @@ void * listen_to_peer(){
                 }
 
                 insert(picture);
-                
+                printlist();
 
                 if(pthread_rwlock_unlock(&rwlock) != 0){
                     printf("Write LOCK not unlocked\n");
                     continue;
                 }
 
-                printlist();
+                
 
                 cmd_add response;
                 response.code = 20;
@@ -504,9 +504,9 @@ void * listen_to_peer(){
                     nbytes = recv(new_tcp_fd, p_array, photo_size,0);
                     cur_index = cur_index + nbytes;
                     fwrite(p_array, 1, nbytes, image);
-                    printf("%d\n", nbytes);
-                    printf("%d\n", cur_index );
-                    fflush(stdout);
+                    //printf("%d\n", nbytes);
+                    //printf("%d\n", cur_index );
+                    //fflush(stdout);
                 }
             
                 fclose(image);
@@ -545,7 +545,7 @@ void * listen_to_peer(){
 
                 int status = 0;
                 while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
-                    perror("TCP connection failed adding picture");
+                    perror("TCP connection failed adding picture. Getting new address...");
                     status = get_new_peer_address(&peer_addr);
 
                     if (status == -1){
@@ -647,7 +647,7 @@ void * listen_to_peer(){
 
                 int status = 0;
                 while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
-                    perror("TCP connection failed");
+                    perror("TCP connection failed, retrieving new peer address...");
                     status = get_new_peer_address(&peer_addr);
                     if (status == -1)
                         break;
@@ -699,7 +699,7 @@ void * listen_to_peer(){
 
                 int status = 0;
                 while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
-                    perror("TCP connection failed");
+                    perror("TCP connection failed, retrieving new peer address");
                     status = get_new_peer_address(&peer_addr);
                     if (status == -1)
                         break;
@@ -784,7 +784,7 @@ void * serve_client (void * sock){
                     nbytes = recv(*new_tcp_fd, p_array, photo_size,0);
                     cur_index = cur_index + nbytes;
                     fwrite(p_array, 1, nbytes, image);
-                    printf("%d\n", nbytes);
+                    //printf("%d\n", nbytes);
                 }
             
                 fclose(image);
@@ -842,14 +842,14 @@ void * serve_client (void * sock){
                         }   
 
                         int status = 0;
-                        printf("CONNECTING WITH UP PEER\n");
+                        //printf("CONNECTING WITH UP PEER\n");
                         while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0) {
                             perror("TCP connection failed, retrieving new peer address");
                             status = get_new_peer_address(&peer_addr);
                             if (status == -1)
                                 break;
                         }
-                        printf("CONNECTED WITH UP PEER\n");
+                        //printf("CONNECTED WITH UP PEER\n");
 
                         if (status == -1)
                             continue;
@@ -887,7 +887,7 @@ void * serve_client (void * sock){
                         }
 
                         memcpy(&upload, buffer, sizeof(cmd_add));
-                        printf("I RECEIVED AN UPLOAD TYPE %d\n",upload.type );
+                        //printf("I RECEIVED AN UPLOAD TYPE %d\n",upload.type );
                         if (upload.type == 1){
 
                             /* Send image */
@@ -979,7 +979,7 @@ void * serve_client (void * sock){
 
                         int status = 0;
                         while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
-                            perror("TCP connection failed");
+                            perror("TCP connection failed, retrieving new peer address...");
                             status = get_new_peer_address(&peer_addr);
                             if (status == -1){
                                 break;
@@ -1064,7 +1064,7 @@ void * serve_client (void * sock){
 
                         int stat = 0;
                         while (connect(tcp_tmp, (struct sockaddr*)&peer_addr, sizeof(peer_addr)) < 0){
-                            perror("TCP connection failed");
+                            perror("TCP connection failed, retrieving new peer address...");
                             stat = get_new_peer_address(&peer_addr);
                             
                             if (stat == -1)
@@ -1429,6 +1429,8 @@ int remove_node(uint32_t id){
 
 
 void printlist(){
+
+    printf("\n ----- LINKED LIST STATUS -----\n");
 
     node * cur_node = head;
 

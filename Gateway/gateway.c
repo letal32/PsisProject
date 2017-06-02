@@ -198,7 +198,7 @@ void * fromclient (void * arg){
                   }
 
                  node server;
-                 if (cur_server_index < num_servers){
+                 if (cur_server_index <= num_servers){
                     server = get_server(head, cur_server_index);
                     cur_server_index++;
                  } else {
