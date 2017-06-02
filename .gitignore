@@ -31,3 +31,8 @@
 # Debug files
 *.dSYM/
 *.su
+
+#pictures
+*.jpg
+*.jpeg
+*.png
